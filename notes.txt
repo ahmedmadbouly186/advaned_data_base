@@ -1,0 +1,10 @@
+1- we need to store database in numerice form , there is byte encoder in csv formate (جربتها لقتها بتوفر نص المساحه بس مش عارف ا رجع الداتا(
+في طريقه تانيه binary files 
+ودي لقتلها نوعين nmpy binary fiels , hdf5 files 
+بس مش عارف append علي الداتا الي بتتخزن , لازم الود الداتا كلها واابدنت عليها فالكود وبعدها استور تاني
+vscode-pydata-viewer extension
+
+problem is solved by convert float number to 8  bytes value and write thes 8 bytes in the file.
+Note : the data is nmpy64 so each dimension need 8 bytes not 4 bytes
+
+2-
