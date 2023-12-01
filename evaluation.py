@@ -1,5 +1,5 @@
 import numpy as np
-from worst_case_implementation import VecDBWorst
+from indexer import VecDBWorst
 import time
 from dataclasses import dataclass
 from typing import List
@@ -27,9 +27,11 @@ def run_queries(db, np_rows, top_k, num_runs):
         actual_ids = np.argsort(np_rows.dot(query.T).T / (np.linalg.norm(np_rows, axis=1) * np.linalg.norm(query)), axis= 1).squeeze().tolist()[::-1]
         toc = time.time()
         np_run_time = toc - tic
-        print("np_run_time", np_run_time)
-        print("our_run_time", run_time)
-        print("----------------------------")
+
+        # print("np_run_time", np_run_time)
+        # print("our_run_time", run_time)
+        # print("----------------------------")
+
         results.append(Result(run_time, top_k, db_ids, actual_ids))
     return results
 
@@ -57,14 +59,15 @@ def eval(results: List[Result]):
 
 
 if __name__ == "__main__":
-    db = VecDBWorst(new_db=False)
-    for i in range(200):
-        records_np = np.random.random((100000, 70))
+    
+    for i in range(10):
+        db = VecDBWorst(new_db=True)
+        records_np = np.random.random((1000, 70))
         records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
         _len = len(records_np)
         db.insert_records(records_dict)
-        # res = run_queries(db, records_np, 5, 1)
-        # print(eval(res))
+        res = run_queries(db, records_np, 5, 10)
+        print(eval(res))
     
     # records_np = np.concatenate([records_np, np.random.random((90000, 70))])
     # records_dict = [{"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]

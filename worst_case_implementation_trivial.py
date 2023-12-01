@@ -34,19 +34,6 @@ class VecDBWorst:
                     float_bytes = struct.pack('>d', num)
                     fout.write(float_bytes)
 
-                # row_str = f"{id}," + ",".join([str(e) for e in embed])
-                # fout.write(f"{row_str}\n")
-                # print(type(id),id)
-                # print(type(embed))
-                # print(type(embed[0]),embed[0])
-                # for nustn(num) 
-
-
-                # id, embed = row["id"], row["embed"]
-                # binary_embed = struct.pack(f"{len(embed)}f", *embed)
-                # row_str = f"{id},".encode() + binary_embed + "\n".encode()
-                # fout.write(f"{row_str}\n".encode())
-            # writer.writerows(marks)
         self._build_index()
 
     def retrive(self, query: Annotated[List[float], 70], top_k = 5):
@@ -68,19 +55,16 @@ class VecDBWorst:
                     num = struct.unpack('>d', num_bytes)[0]
                     restored_matrix.append(num)
         restored_matrix = np.reshape(restored_matrix, (len(restored_matrix)//(total_dim), total_dim))
+        # it is 2d matrix
+        # each elemnt represent a row
+        # the first element of each row is the id, the rest is the embed
+
         for row in restored_matrix:
             id = row[0]
             embed = row[1:]
             score = self._cal_score(query, embed)
             scores.append((score, id))
 
-        # with open(self.file_path, "rb") as fin:
-        #     for row in fin.readlines():
-        #         row_splits = row.split(",")
-        #         id = int(row_splits[0])
-        #         embed = [float(e) for e in row_splits[1:]]
-        #         score = self._cal_score(query, embed)
-        #         scores.append((score, id))
         # here we assume that if two rows have the same score, return the lowest ID
         scores = sorted(scores, reverse=True)[:top_k]#sort in decreasing order , the best choice is the biggest one
         return [s[1] for s in scores]
