@@ -254,19 +254,35 @@ def retrive():
         #     data.append(int(row[:-1]))
     return data
 
-tic = time.time()
-insertion()
-toc = time.time()
-run_time = toc - tic
-print("insertion time", run_time)
-with open('0_.csv', 'rb') as file:
-    data_bytes=file.read(os.path.getsize('0_.csv'))
-    print(len(data_bytes))
-    print(struct.unpack('>i', data_bytes[:4])[0])
-    print(struct.unpack('>'+'f'*4, data_bytes[4:20]))
+# tic = time.time()
+# insertion()
+# toc = time.time()
+# run_time = toc - tic
+# print("insertion time", run_time)
+
 # tic = time.time()
 # data=retrive()
 # toc = time.time()
 # run_time = toc - tic
 # print("read time", run_time)
 # print(len(data))
+data=[]
+def append(start,end,data):
+    # global data
+    for i in range(start,end):
+        data.append(i)
+    
+import threading
+thread1=threading.Thread(target=append, args=(0,1000000,data))
+thread2=threading.Thread(target=append, args=(1000000,2000000,data))
+
+thread1.start()
+thread2.start()
+thread1.join()
+thread2.join()
+print(len(data))
+for i in range(len(data)-1):
+    if(data[i]>data[i+1]):
+        print("error",i)
+        print(data[i],data[i+1])
+        break

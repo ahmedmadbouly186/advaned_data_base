@@ -100,8 +100,10 @@ optimization : read bulk
 100K : (0.0, 2.457648277282715)
 1M:(0.0, 25.86643075942993)
 
-
-
+optimization: i have no idea what is it, i devide the code into smaller blocks and implement multi thread 
+"note this time is on one thread"
+100K: (0.0, 1.8101657231648762)
+1M: (0.0, 20.595874071121216)
 
 
 

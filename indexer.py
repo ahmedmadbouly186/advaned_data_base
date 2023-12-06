@@ -3,12 +3,50 @@ import numpy as np
 import struct
 import csv
 import os
-
+import threading
 vector_dim = 70
 total_dim = 71
 num_random_vectors = 2
 similarity_threshold = 0.75
 num_bytes = 8*70
+num_threads=1
+
+
+
+def _cal_score( vec1, vec2):
+        dot_product = np.dot(vec1, vec2)
+        # calc the euclidean norm of vec1 and vec2
+        # norm_vec1 = np.sqrt(np.sum(np.square(vec1)))
+        norm_vec1 = np.linalg.norm(vec1)
+        norm_vec2 = np.linalg.norm(vec2)
+        cosine_similarity = dot_product / (norm_vec1 * norm_vec2)
+        return cosine_similarity
+def retrive_thred(query,top_k, data,restored_matrix):
+    records=(len(data)//4)//(total_dim)
+    current_byte=0
+    temp_matrix=[]
+    for i in range (records):
+        row=[0]*total_dim
+        # Read the id (integer) from file (4 bytes)
+        id = struct.unpack('>i', data[current_byte:current_byte+4])[0]
+        current_byte+=4
+        nums = struct.unpack('>' + 'f' * 70, data[current_byte:current_byte+vector_dim*4])
+        current_byte+=vector_dim*4
+        row[0]=id
+        index=1
+        for num in nums:
+            row[index]=num
+            index+=1
+        temp_matrix.append(row)
+    scores = []
+    for row in temp_matrix:
+            id = row[0]
+            embed = row[1:]
+            score = _cal_score(query, embed)
+            scores.append((score,row))
+    scores = sorted(scores, reverse=True)[:top_k]
+    restored_matrix.extend([s[1] for s in scores])
+
 class VecDBWorst:
     def __init__(self, file_path = "saved_db.csv",meta_data_path="meta.csv", new_db = True) -> None:
         self.file_path = file_path
@@ -88,17 +126,13 @@ class VecDBWorst:
         self._build_index()
     def find_bucket_index(self, query):
         bucket=0
-        # 11
-
-        # bucket = 1 
-        # 1
-        # bucket << 1 ---> 10 --> 11
         for j in range(len(self.random_vectors)):
             temp_score=self._cal_score(query,self.random_vectors[j])
             bucket=bucket<<1
             if(temp_score>similarity_threshold):
                 bucket=bucket+1
         return bucket
+            
     def retrive(self, query: Annotated[List[float], 70], top_k = 5):        
         bucket_index=self.find_bucket_index(query)
         global_scores=[]
@@ -113,20 +147,28 @@ class VecDBWorst:
             with open(file_path, 'rb') as file:
                 data = file.read(total_bytes)
                 records=(len(data)//4)//(total_dim)
-                current_byte=0
-                for i in range (records):
-                    row=[0]*total_dim
-                    # Read the id (integer) from file (4 bytes)
-                    id = struct.unpack('>i', data[current_byte:current_byte+4])[0]
-                    current_byte+=4
-                    nums = struct.unpack('>' + 'f' * 70, data[current_byte:current_byte+vector_dim*4])
-                    current_byte+=vector_dim*4
-                    row[0]=id
-                    index=1
-                    for num in nums:
-                        row[index]=num
-                        index+=1
-                    restored_matrix.append(row)
+                threads=[]
+                for i in range(num_threads):
+                    threads.append(threading.Thread(target=retrive_thred, args=(query[0],top_k,data[(records*i//num_threads)*total_dim*4:(records*(i+1)//num_threads)*total_dim*4],restored_matrix)))
+                    threads[i].start()
+                for i in range(num_threads):
+                    threads[i].join()
+
+                # records=(len(data)//4)//(total_dim)
+                # current_byte=0
+                # for i in range (records):
+                #     row=[0]*total_dim
+                #     # Read the id (integer) from file (4 bytes)
+                #     id = struct.unpack('>i', data[current_byte:current_byte+4])[0]
+                #     current_byte+=4
+                #     nums = struct.unpack('>' + 'f' * 70, data[current_byte:current_byte+vector_dim*4])
+                #     current_byte+=vector_dim*4
+                #     row[0]=id
+                #     index=1
+                #     for num in nums:
+                #         row[index]=num
+                #         index+=1
+                #     restored_matrix.append(row)
             # it is 2d matrix
             # each elemnt represent a row
             # the first element of each row is the id, the rest is the embed
