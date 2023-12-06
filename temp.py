@@ -226,7 +226,7 @@ def insertion():
     for i in range(file_count):
         fout = open(str(i)+'_.csv', 'wb')
         fils.append(fout)
-    for i in range(1000000 * 70):
+    for i in range(1 * 70):
         for j in range(file_count):
             fils[j].write(struct.pack('>i', i))
             # data[j].append(str(i)+'\n')
@@ -253,15 +253,20 @@ def retrive():
         # for row in file.readlines():
         #     data.append(int(row[:-1]))
     return data
-# tic = time.time()
-# insertion()
-# toc = time.time()
-# run_time = toc - tic
-# print("insertion time", run_time)
 
 tic = time.time()
-data=retrive()
+insertion()
 toc = time.time()
 run_time = toc - tic
-print("read time", run_time)
-print(len(data))
+print("insertion time", run_time)
+with open('0_.csv', 'rb') as file:
+    data_bytes=file.read(os.path.getsize('0_.csv'))
+    print(len(data_bytes))
+    print(struct.unpack('>i', data_bytes[:4])[0])
+    print(struct.unpack('>'+'f'*4, data_bytes[4:20]))
+# tic = time.time()
+# data=retrive()
+# toc = time.time()
+# run_time = toc - tic
+# print("read time", run_time)
+# print(len(data))

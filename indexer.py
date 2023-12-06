@@ -2,7 +2,7 @@ from typing import Dict, List, Annotated
 import numpy as np
 import struct
 import csv
-
+import os
 
 vector_dim = 70
 total_dim = 71
@@ -10,7 +10,7 @@ num_random_vectors = 2
 similarity_threshold = 0.75
 num_bytes = 8*70
 class VecDBWorst:
-    def __init__(self, file_path = "saved_db.csv",meta_data_path="meta.cvs", new_db = True) -> None:
+    def __init__(self, file_path = "saved_db.csv",meta_data_path="meta.csv", new_db = True) -> None:
         self.file_path = file_path
         self.meta_data_path=meta_data_path
         self.file_paths=[]
@@ -108,24 +108,25 @@ class VecDBWorst:
             temp_bucket_index=bucket_index
             if(i!=0):
                 temp_bucket_index=bucket_index^(1<<(i-1))
-                 
-            with open(self.file_paths[temp_bucket_index], 'rb') as file:
-                while True:
+            file_path =self.file_paths[temp_bucket_index] 
+            total_bytes=os.path.getsize(file_path)
+            with open(file_path, 'rb') as file:
+                data = file.read(total_bytes)
+                records=(len(data)//4)//(total_dim)
+                current_byte=0
+                for i in range (records):
+                    row=[0]*total_dim
                     # Read the id (integer) from file (4 bytes)
-                    id_bytes = file.read(4)
-                    if not id_bytes:
-                        break
-                    id = struct.unpack('>i', id_bytes)[0]
-                    restored_matrix.append(id)
-                    # for i in range(vector_dim):
-                    data_bytes = file.read(4*70)
-                    if not data_bytes:
-                        print("Error: End of file reached")
-                        break
-                    nums = struct.unpack('>' + 'f' * 70, data_bytes)
+                    id = struct.unpack('>i', data[current_byte:current_byte+4])[0]
+                    current_byte+=4
+                    nums = struct.unpack('>' + 'f' * 70, data[current_byte:current_byte+vector_dim*4])
+                    current_byte+=vector_dim*4
+                    row[0]=id
+                    index=1
                     for num in nums:
-                        restored_matrix.append(num)
-            restored_matrix = np.reshape(restored_matrix, (len(restored_matrix)//(total_dim), total_dim))
+                        row[index]=num
+                        index+=1
+                    restored_matrix.append(row)
             # it is 2d matrix
             # each elemnt represent a row
             # the first element of each row is the id, the rest is the embed
