@@ -8,6 +8,7 @@ vector_dim = 70
 total_dim = 71
 num_random_vectors = 2
 similarity_threshold = 0.75
+num_bytes = 8*70
 class VecDBWorst:
     def __init__(self, file_path = "saved_db.csv",meta_data_path="meta.cvs", new_db = True) -> None:
         self.file_path = file_path
@@ -68,17 +69,22 @@ class VecDBWorst:
         # },   "embed" : [70 dim vector]
         # 
         # ]
-        # with open(self.file_path, "ab") as fout:
+        files=[]
+        for path in self.file_paths:
+            fout = open(path, 'ab')
+            files.append(fout)
         for row in rows:
             id, embed = row["id"], row["embed"]
             bucket_index=self.find_bucket_index(embed)
-            with open( self.file_paths[bucket_index] , "ab") as fout:
-                fout.write(struct.pack('>i', id))
-                for num in embed:
-                    # Convert each integer to bytes (using 4 bytes in this example) and write to file
-                    float_bytes = struct.pack('>d', float(num))
-                    fout.write(float_bytes)
-
+            # with open( self.file_paths[bucket_index] , "ab") as fout:
+            fout=files[bucket_index]
+            fout.write(struct.pack('>i', id))
+            for num in embed:
+                # Convert each integer to bytes (using 4 bytes in this example) and write to file
+                float_bytes = struct.pack('>f', float(num))
+                fout.write(float_bytes)
+        for file in files:
+            file.close()
         self._build_index()
     def find_bucket_index(self, query):
         bucket=0
@@ -93,9 +99,7 @@ class VecDBWorst:
             if(temp_score>similarity_threshold):
                 bucket=bucket+1
         return bucket
-    def retrive(self, query: Annotated[List[float], 70], top_k = 5):
-       
-        
+    def retrive(self, query: Annotated[List[float], 70], top_k = 5):        
         bucket_index=self.find_bucket_index(query)
         global_scores=[]
         for i in range (num_random_vectors+1):
@@ -113,12 +117,13 @@ class VecDBWorst:
                         break
                     id = struct.unpack('>i', id_bytes)[0]
                     restored_matrix.append(id)
-                    for i in range(vector_dim):
-                        num_bytes = file.read(8)
-                        if not num_bytes:
-                            print("Error: End of file reached")
-                            break
-                        num = struct.unpack('>d', num_bytes)[0]
+                    # for i in range(vector_dim):
+                    data_bytes = file.read(4*70)
+                    if not data_bytes:
+                        print("Error: End of file reached")
+                        break
+                    nums = struct.unpack('>' + 'f' * 70, data_bytes)
+                    for num in nums:
                         restored_matrix.append(num)
             restored_matrix = np.reshape(restored_matrix, (len(restored_matrix)//(total_dim), total_dim))
             # it is 2d matrix

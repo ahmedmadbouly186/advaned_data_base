@@ -184,6 +184,9 @@
 
 
 # ########################################### end LSH
+import time
+import struct
+import os
 # import nanopq
 # import numpy as np
 # import nanopq
@@ -216,3 +219,49 @@
 #             for row in rows:
 #                 row_str = ",".join([str(e) for e in row])
 #                 fout.write(f"{row_str}\n")
+def insertion():
+    file_count=1
+    fils=[]
+    data=[[]]*10
+    for i in range(file_count):
+        fout = open(str(i)+'_.csv', 'wb')
+        fils.append(fout)
+    for i in range(1000000 * 70):
+        for j in range(file_count):
+            fils[j].write(struct.pack('>i', i))
+            # data[j].append(str(i)+'\n')
+    for i in range(file_count):
+        # fils[i].write(''.join(data[i]))
+        fils[i].close()
+chunk_size = 70*8
+def retrive():
+    data=[]
+    with open('0_.csv', "rb") as file:
+        total_bytes = os.path.getsize('0_.csv')
+
+        while True:
+            # ebyte=file.read(4)
+            data_chunk = file.read(chunk_size)
+
+
+            if not data_chunk:
+                break
+            numbers = struct.unpack('>' + 'I' * (chunk_size // 4), data_chunk)
+            for number in numbers:
+                
+                data.append(number)
+        # for row in file.readlines():
+        #     data.append(int(row[:-1]))
+    return data
+# tic = time.time()
+# insertion()
+# toc = time.time()
+# run_time = toc - tic
+# print("insertion time", run_time)
+
+tic = time.time()
+data=retrive()
+toc = time.time()
+run_time = toc - tic
+print("read time", run_time)
+print(len(data))
