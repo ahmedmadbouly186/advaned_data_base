@@ -14,7 +14,6 @@ class VecDBWorst:
             with open(self.file_path, "w") as fout:
                 # if you need to add any head to the file
                 pass
-    
     def insert_records(self, rows: List[Dict[int, Annotated[List[float], 70]]]):
         # rows has the following shape [
         # {

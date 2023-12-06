@@ -2,53 +2,14 @@ from typing import Dict, List, Annotated
 import numpy as np
 import struct
 import csv
-import os
-import threading
+
+
 vector_dim = 70
 total_dim = 71
 num_random_vectors = 3
 similarity_threshold = 0.75
-num_bytes = 8*70
-num_threads=1
-
-
-
-def _cal_score( vec1, vec2):
-        dot_product = np.dot(vec1, vec2)
-        # calc the euclidean norm of vec1 and vec2
-        # norm_vec1 = np.sqrt(np.sum(np.square(vec1)))
-        norm_vec1 = np.linalg.norm(vec1)
-        norm_vec2 = np.linalg.norm(vec2)
-        cosine_similarity = dot_product / (norm_vec1 * norm_vec2)
-        return cosine_similarity
-def retrive_thred(query,top_k, data,restored_matrix):
-    records=(len(data)//4)//(total_dim)
-    current_byte=0
-    temp_matrix=[]
-    for i in range (records):
-        row=[0]*total_dim
-        # Read the id (integer) from file (4 bytes)
-        id = struct.unpack('>i', data[current_byte:current_byte+4])[0]
-        current_byte+=4
-        nums = struct.unpack('>' + 'f' * 70, data[current_byte:current_byte+vector_dim*4])
-        current_byte+=vector_dim*4
-        row[0]=id
-        index=1
-        for num in nums:
-            row[index]=num
-            index+=1
-        temp_matrix.append(row)
-    scores = []
-    for row in temp_matrix:
-            id = row[0]
-            embed = row[1:]
-            score = _cal_score(query, embed)
-            scores.append((score,row))
-    scores = sorted(scores, reverse=True)[:top_k]
-    restored_matrix.extend([s[1] for s in scores])
-
 class VecDBWorst:
-    def __init__(self, file_path = "saved_db.csv",meta_data_path="meta.csv", new_db = True) -> None:
+    def __init__(self, file_path = "saved_db.csv",meta_data_path="meta.cvs", new_db = True) -> None:
         self.file_path = file_path
         self.meta_data_path=meta_data_path
         self.file_paths=[]
@@ -85,13 +46,13 @@ class VecDBWorst:
         self.random_vectors = random_vectors
     
     
-    # def gram_schmidt(self,vectors):
-    #     basis = []
-    #     for vector in vectors:
-    #         for existing_vector in basis:
-    #             vector -= np.dot(vector, existing_vector) / np.dot(existing_vector, existing_vector) * existing_vector
-    #         basis.append(vector)
-    #     return basis
+    def gram_schmidt(self,vectors):
+        basis = []
+        for vector in vectors:
+            for existing_vector in basis:
+                vector -= np.dot(vector, existing_vector) / np.dot(existing_vector, existing_vector) * existing_vector
+            basis.append(vector)
+        return basis
     def generate_random_vectors(self,num_vectors):
         vectors = []
         for i in range(num_vectors):
@@ -107,34 +68,34 @@ class VecDBWorst:
         # },   "embed" : [70 dim vector]
         # 
         # ]
-        files=[]
-        for path in self.file_paths:
-            fout = open(path, 'ab')
-            files.append(fout)
+        # with open(self.file_path, "ab") as fout:
         for row in rows:
             id, embed = row["id"], row["embed"]
             bucket_index=self.find_bucket_index(embed)
-            # with open( self.file_paths[bucket_index] , "ab") as fout:
-            fout=files[bucket_index]
-            fout.write(struct.pack('>i', id))
-            for num in embed:
-                # Convert each integer to bytes (using 4 bytes in this example) and write to file
-                float_bytes = struct.pack('>f', float(num))
-                fout.write(float_bytes)
-        for file in files:
-            file.close()
+            with open( self.file_paths[bucket_index] , "ab") as fout:
+                fout.write(struct.pack('>i', id))
+                for num in embed:
+                    # Convert each integer to bytes (using 4 bytes in this example) and write to file
+                    float_bytes = struct.pack('>d', num)
+                    fout.write(float_bytes)
+
         self._build_index()
-        
     def find_bucket_index(self, query):
         bucket=0
+        # 11
+
+        # bucket = 1 
+        # 1
+        # bucket << 1 ---> 10 --> 11
         for j in range(len(self.random_vectors)):
             temp_score=self._cal_score(query,self.random_vectors[j])
             bucket=bucket<<1
             if(temp_score>similarity_threshold):
                 bucket=bucket+1
         return bucket
-            
-    def retrive(self, query: Annotated[List[float], 70], top_k = 5):        
+    def retrive(self, query: Annotated[List[float], 70], top_k = 5):
+       
+        
         bucket_index=self.find_bucket_index(query)
         global_scores=[]
         for i in range (num_random_vectors+1):
@@ -143,33 +104,23 @@ class VecDBWorst:
             temp_bucket_index=bucket_index
             if(i!=0):
                 temp_bucket_index=bucket_index^(1<<(i-1))
-            file_path =self.file_paths[temp_bucket_index] 
-            total_bytes=os.path.getsize(file_path)
-            with open(file_path, 'rb') as file:
-                data = file.read(total_bytes)
-                records=(len(data)//4)//(total_dim)
-                threads=[]
-                for i in range(num_threads):
-                    threads.append(threading.Thread(target=retrive_thred, args=(query[0],top_k,data[(records*i//num_threads)*total_dim*4:(records*(i+1)//num_threads)*total_dim*4],restored_matrix)))
-                    threads[i].start()
-                for i in range(num_threads):
-                    threads[i].join()
-
-                # records=(len(data)//4)//(total_dim)
-                # current_byte=0
-                # for i in range (records):
-                #     row=[0]*total_dim
-                #     # Read the id (integer) from file (4 bytes)
-                #     id = struct.unpack('>i', data[current_byte:current_byte+4])[0]
-                #     current_byte+=4
-                #     nums = struct.unpack('>' + 'f' * 70, data[current_byte:current_byte+vector_dim*4])
-                #     current_byte+=vector_dim*4
-                #     row[0]=id
-                #     index=1
-                #     for num in nums:
-                #         row[index]=num
-                #         index+=1
-                #     restored_matrix.append(row)
+                 
+            with open(self.file_paths[temp_bucket_index], 'rb') as file:
+                while True:
+                    # Read the id (integer) from file (4 bytes)
+                    id_bytes = file.read(4)
+                    if not id_bytes:
+                        break
+                    id = struct.unpack('>i', id_bytes)[0]
+                    restored_matrix.append(id)
+                    for i in range(vector_dim):
+                        num_bytes = file.read(8)
+                        if not num_bytes:
+                            print("Error: End of file reached")
+                            break
+                        num = struct.unpack('>d', num_bytes)[0]
+                        restored_matrix.append(num)
+            restored_matrix = np.reshape(restored_matrix, (len(restored_matrix)//(total_dim), total_dim))
             # it is 2d matrix
             # each elemnt represent a row
             # the first element of each row is the id, the rest is the embed
@@ -198,4 +149,10 @@ class VecDBWorst:
 
     def _build_index(self):
         pass
+
+
+# db = VecDBWorst(new_db=True)
+# records_np = np.random.random((1000, 3))
+# records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
+# db.insert_records(records_dict)
 

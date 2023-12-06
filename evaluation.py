@@ -57,18 +57,21 @@ def eval(results: List[Result]):
 
     return sum(scores) / len(scores), sum(run_time) / len(run_time)
 
-
 if __name__ == "__main__":
-    
-    for i in range(10):
-        db = VecDBKmeans(new_db=True)
-        records_np = np.random.random((10000, 70))
+    threads = []
+    for i in range(1):
+        db = VecDBWorst(new_db=True,)
+        records_np = np.random.random((100000, 70))
         records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
         _len = len(records_np)
+        tic = time.time()
         db.insert_records(records_dict)
-        res = run_queries(db, records_np, 5, 10)
+        toc = time.time()
+        run_time = toc - tic
+        print("insirtion time", run_time)
+        res = run_queries(db, records_np, 5, 1)
         print(eval(res))
-    
+        
     # records_np = np.concatenate([records_np, np.random.random((90000, 70))])
     # records_dict = [{"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
     # _len = len(records_np)
