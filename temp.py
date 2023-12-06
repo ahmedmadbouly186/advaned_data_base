@@ -95,65 +95,124 @@
 
 
 # generate 2 random vectors with 70 dim
-import numpy as np
-import random
+# LSH
+# import numpy as np
+# import random
 
-vector_dim=2
-total_dim=71
-top_k=10
-def generate_random_vectors(num_vectors):
-    vectors = []
-    for i in range(num_vectors):
-        vectors.append(np.random.random( vector_dim))
-    return vectors
+# vector_dim=70
+# total_dim=71
+# top_k=10
+# threshold=0.8
+# def gram_schmidt(vectors):
+#     basis = []
+#     for vector in vectors:
+#         for existing_vector in basis:
+#             vector -= np.dot(vector, existing_vector) / np.dot(existing_vector, existing_vector) * existing_vector
+#         basis.append(vector)
+#     return basis
+# def generate_random_vectors2(num_vectors):
+#     vectors = []
+#     for i in range(num_vectors):
+#         vectors.append(np.random.random( vector_dim))
+#     orthogonalized_vectors = gram_schmidt(vectors)
+#     return orthogonalized_vectors
+# def generate_random_vectors(num_vectors):
+#     vectors = []
+#     for i in range(num_vectors):
+#         vector=np.zeros( vector_dim)
+#         vector[i]=1.0
+#         vectors.append(vector)
+#     return vectors
 
-def _cal_score( vec1, vec2):
-        dot_product = np.dot(vec1, vec2)
-        # calc the euclidean norm of vec1 and vec2
-        # norm_vec1 = np.sqrt(np.sum(np.square(vec1)))
-        norm_vec1 = np.linalg.norm(vec1)
-        norm_vec2 = np.linalg.norm(vec2)
-        cosine_similarity = dot_product / (norm_vec1 * norm_vec2)
-        return cosine_similarity
+# def _cal_score( vec1, vec2):
+#         dot_product = np.dot(vec1, vec2)
+#         # calc the euclidean norm of vec1 and vec2
+#         # norm_vec1 = np.sqrt(np.sum(np.square(vec1)))
+#         norm_vec1 = np.linalg.norm(vec1)
+#         norm_vec2 = np.linalg.norm(vec2)
+#         cosine_similarity = dot_product / (norm_vec1 * norm_vec2)
+#         return cosine_similarity
 
-rand=generate_random_vectors(5)
-mapping=[0]*(2**len(rand))
-data=[]
-for i in range(len(mapping)):
-    data.append([])
+# rand=generate_random_vectors(5)
+# mapping=[0]*(2**len(rand))
+# data=[]
+# for i in range(len(mapping)):
+#     data.append([])
 
-for i in range(10000):
-    vec=np.random.random( vector_dim)
-    score=0
-    for j in range(len(rand)):
-        temp_score=_cal_score(vec,rand[j])
-        score=score<<1
-        if(temp_score>.75):
-             score=score+1
-    mapping[score-1]+=1
-    data[score-1].append(vec)
-print(mapping)
+# for i in range(100000):
+#     vec=np.random.random( vector_dim)
+#     score=0
+#     for j in range(len(rand)):
+#         temp_score=_cal_score(vec,rand[j])
+#         score=score<<1
+#         if(temp_score>threshold):
+#              score=score+1
+#     mapping[score-1]+=1
+#     data[score-1].append(vec)
+# # print(mapping)
+# index=0
+# for x in mapping:
+#     # print binarry represenation of index
+#     print(index,x)
+#     index+=1
 # print(data)
-query = np.random.random( vector_dim)
-# we need to fine the actual top k
-# all we need is to find for wich buckets belong to the top k simmilar vectors
-scores = []
-actual=[0]*len(data)
-index=0
-for bucket in data:
-    for vec in bucket:
-        score = _cal_score(query, vec)
-        scores.append((score, index+1))
-    index+=1
-out=sorted(scores, reverse=True)[:top_k]
-# print(out)
-for i in range(len(out)):
-    actual[out[i][1]-1]+=1
-print(actual)
-score=0
-for j in range(len(rand)):
-    temp_score=_cal_score(query,rand[j])
-    score=score<<1
-    if(temp_score>.75):
-        score=score+1
-print("pretected bucket is : ",score)
+# for _ in range(5): 
+#     query = np.random.random( vector_dim)
+#     # we need to fine the actual top k
+#     # all we need is to find for wich buckets belong to the top k simmilar vectors
+#     scores = []
+#     actual=[0]*len(data)
+#     index=0
+#     for bucket in data:
+#         for vec in bucket:
+#             score = _cal_score(query, vec)
+#             scores.append((score, index+1))
+#         index+=1
+#     out=sorted(scores, reverse=True)[:top_k]
+#     # print(out)
+#     for i in range(len(out)):
+#         actual[out[i][1]-1]+=1
+
+#     score=0
+#     for j in range(len(rand)):
+#         temp_score=_cal_score(query,rand[j])
+#         score=score<<1
+#         if(temp_score>threshold):
+#             score=score+1
+#     print(actual)
+#     print("pretected bucket is : ",score)
+
+
+# ########################################### end LSH
+# import nanopq
+# import numpy as np
+# import nanopq
+# import numpy as np
+
+# N, Nt, D = 100000, 2000, 70
+# X = np.random.random((N, D)).astype(np.float32)  # 10,000 128-dim vectors to be indexed
+# Xt = np.random.random((Nt, D)).astype(np.float32)  # 2,000 128-dim vectors for training
+# query = np.random.random((D,)).astype(np.float32)  # a 128-dim query vector
+
+# # Instantiate with M=8 sub-spaces
+# pq = nanopq.PQ(M=70,Ks=1024, verbose=True)
+# # Train codewords
+# pq.fit(Xt,)
+# print(pq.verbose)
+# print(pq.M)
+# # we need to print the centroids itself
+# print(len(pq.codewords))
+# print(len(pq.codewords[0][0]))
+# # Encode to PQ-codes
+# X_code = pq.encode(X)  # (10000, 8) with dtype=np.uint8
+# with open('test_compresed.csv', "w") as fout:
+#             for row in X_code:
+#                 row_str = ",".join([str(e) for e in row])
+#                 fout.write(f"{row_str}\n")# Results: create a distance table online, and compute Asymmetric Distance to each PQ-code 
+# dists = pq.dtable(query).adist(X_code)  # (10000, ) 
+
+# rows=np.random.random((N, 70))
+# with open('test.csv', "w") as fout:
+#             for row in rows:
+#                 row_str = ",".join([str(e) for e in row])
+#                 fout.write(f"{row_str}\n")

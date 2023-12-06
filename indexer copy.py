@@ -6,7 +6,7 @@ import csv
 
 vector_dim = 70
 total_dim = 71
-num_random_vectors = 2
+num_random_vectors = 3
 similarity_threshold = 0.75
 class VecDBWorst:
     def __init__(self, file_path = "saved_db.csv",meta_data_path="meta.cvs", new_db = True) -> None:
@@ -76,7 +76,7 @@ class VecDBWorst:
                 fout.write(struct.pack('>i', id))
                 for num in embed:
                     # Convert each integer to bytes (using 4 bytes in this example) and write to file
-                    float_bytes = struct.pack('>d', float(num))
+                    float_bytes = struct.pack('>d', num)
                     fout.write(float_bytes)
 
         self._build_index()
