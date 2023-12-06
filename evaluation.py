@@ -1,5 +1,6 @@
 import numpy as np
 from kmeans import VecDBKmeans
+from indexer import VecDBWorst
 import time
 from dataclasses import dataclass
 from typing import List
@@ -59,9 +60,9 @@ def eval(results: List[Result]):
 
 if __name__ == "__main__":
     threads = []
-    for i in range(1):
+    for i in range(3):
         db = VecDBWorst(new_db=True,)
-        records_np = np.random.random((100000, 70))
+        records_np = np.random.random((1000000, 70))
         records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
         _len = len(records_np)
         tic = time.time()

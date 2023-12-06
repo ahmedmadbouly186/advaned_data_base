@@ -4,6 +4,8 @@ import struct
 import csv
 import os
 import threading
+from kmeans import VecDBKmeans
+ 
 vector_dim = 70
 total_dim = 71
 num_random_vectors = 3
@@ -52,7 +54,7 @@ class VecDBWorst:
         self.file_path = file_path
         self.meta_data_path=meta_data_path
         self.file_paths=[]
-
+        self.kmeans=[]
         random_vectors = []
         if new_db:
             # just open new file to delete the old one
@@ -83,7 +85,8 @@ class VecDBWorst:
                     # store fout in a list to use it later
                     pass
         self.random_vectors = random_vectors
-    
+        for i in range(2**num_random_vectors):
+            self.kmeans.append(VecDBKmeans(i,self.file_paths[i],new_db))
     
     # def gram_schmidt(self,vectors):
     #     basis = []
@@ -108,21 +111,27 @@ class VecDBWorst:
         # 
         # ]
         files=[]
-        for path in self.file_paths:
-            fout = open(path, 'ab')
-            files.append(fout)
+        data=[]
+        for i in range(2**num_random_vectors):
+            data.append([])
+        # for path in self.file_paths:
+        #     fout = open(path, 'ab')
+        #     files.append(fout)
         for row in rows:
             id, embed = row["id"], row["embed"]
             bucket_index=self.find_bucket_index(embed)
-            # with open( self.file_paths[bucket_index] , "ab") as fout:
-            fout=files[bucket_index]
-            fout.write(struct.pack('>i', id))
-            for num in embed:
-                # Convert each integer to bytes (using 4 bytes in this example) and write to file
-                float_bytes = struct.pack('>f', float(num))
-                fout.write(float_bytes)
-        for file in files:
-            file.close()
+            data[bucket_index].append(row)
+            # fout=files[bucket_index]
+            # fout.write(struct.pack('>i', id))
+            # for num in embed:
+            #     # Convert each integer to bytes (using 4 bytes in this example) and write to file
+            #     float_bytes = struct.pack('>f', float(num))
+            #     fout.write(float_bytes)
+        # for file in files:
+        #     file.close()
+        for i in range(len(data)):
+            # print(len(data[i]))
+            self.kmeans[i].insert_records(data[i])
         self._build_index()
         
     def find_bucket_index(self, query):
@@ -138,53 +147,46 @@ class VecDBWorst:
         bucket_index=self.find_bucket_index(query)
         global_scores=[]
         for i in range (num_random_vectors+1):
-            scores = []
+            # scores = []
             restored_matrix = []
             temp_bucket_index=bucket_index
+
             if(i!=0):
                 temp_bucket_index=bucket_index^(1<<(i-1))
-            file_path =self.file_paths[temp_bucket_index] 
-            total_bytes=os.path.getsize(file_path)
-            with open(file_path, 'rb') as file:
-                data = file.read(total_bytes)
-                records=(len(data)//4)//(total_dim)
-                threads=[]
-                for i in range(num_threads):
-                    threads.append(threading.Thread(target=retrive_thred, args=(query[0],top_k,data[(records*i//num_threads)*total_dim*4:(records*(i+1)//num_threads)*total_dim*4],restored_matrix)))
-                    threads[i].start()
-                for i in range(num_threads):
-                    threads[i].join()
 
-                # records=(len(data)//4)//(total_dim)
-                # current_byte=0
-                # for i in range (records):
-                #     row=[0]*total_dim
-                #     # Read the id (integer) from file (4 bytes)
-                #     id = struct.unpack('>i', data[current_byte:current_byte+4])[0]
-                #     current_byte+=4
-                #     nums = struct.unpack('>' + 'f' * 70, data[current_byte:current_byte+vector_dim*4])
-                #     current_byte+=vector_dim*4
-                #     row[0]=id
-                #     index=1
-                #     for num in nums:
-                #         row[index]=num
-                #         index+=1
-                #     restored_matrix.append(row)
+            # print(temp_bucket_index)
+            kmeans=self.kmeans[temp_bucket_index]
+            scores=kmeans.retrive(query,top_k)
+            # print(scores)
+            global_scores.extend(scores)
+            # file_path =self.file_paths[temp_bucket_index] 
+            # total_bytes=os.path.getsize(file_path)
+            # with open(file_path, 'rb') as file:
+            #     data = file.read(total_bytes)
+            #     records=(len(data)//4)//(total_dim)
+            #     threads=[]
+            #     for i in range(num_threads):
+            #         threads.append(threading.Thread(target=retrive_thred, args=(query[0],top_k,data[(records*i//num_threads)*total_dim*4:(records*(i+1)//num_threads)*total_dim*4],restored_matrix)))
+            #         threads[i].start()
+            #     for i in range(num_threads):
+            #         threads[i].join()
+
             # it is 2d matrix
             # each elemnt represent a row
             # the first element of each row is the id, the rest is the embed
 
-            for row in restored_matrix:
-                id = row[0]
-                embed = row[1:]
-                score = self._cal_score(query, embed)
-                scores.append((score, id))
+            # for row in restored_matrix:
+            #     id = row[0]
+            #     embed = row[1:]
+            #     score = self._cal_score(query, embed)
+            #     scores.append((score, id))
 
             # here we assume that if two rows have the same score, return the lowest ID
-            scores = sorted(scores, reverse=True)[:top_k]#sort in decreasing order , the best choice is the biggest one
-            global_scores.extend(scores)
+            # scores = sorted(scores, reverse=True)[:top_k]#sort in decreasing order , the best choice is the biggest one
+            # global_scores.extend(scores)
         
         global_scores=sorted(global_scores, reverse=True)[:top_k]
+        # print([s[1] for s in global_scores])
         return [s[1] for s in global_scores]
     
     def _cal_score(self, vec1, vec2):
