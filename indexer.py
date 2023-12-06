@@ -66,6 +66,7 @@ class VecDBWorst:
                     fout.write(float_bytes)
 
         self._build_index()
+        
     def find_bucket_index(self, query):
         bucket=0
         # 11

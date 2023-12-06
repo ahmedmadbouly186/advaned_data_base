@@ -1,5 +1,5 @@
 import numpy as np
-from indexer import VecDBWorst
+from kmeans import VecDBKmeans
 import time
 from dataclasses import dataclass
 from typing import List
@@ -61,8 +61,8 @@ def eval(results: List[Result]):
 if __name__ == "__main__":
     
     for i in range(10):
-        db = VecDBWorst(new_db=True)
-        records_np = np.random.random((1000, 70))
+        db = VecDBKmeans(new_db=True)
+        records_np = np.random.random((10000, 70))
         records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
         _len = len(records_np)
         db.insert_records(records_dict)
