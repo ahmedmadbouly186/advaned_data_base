@@ -109,6 +109,13 @@ optimization : 3 randomvector instead of 2 "it is weird to give us optimal solus
 100K : (0.0, 2.0275888442993164)
 1M:(0.0, 14.752898693084717)
 
+
+Kmenas + LSH
+20 cluster + 5 taken , 3 random vectors
+(0.0, 7.288739442825317)
+
+30 cluster + 5 taken , 3 random vectors
+(0.0, 3.2315847873687744)
 //////////////////////////////////////////////////////////////////////// INSERTION
 100K:insirtion time 22.027479648590088
 1M:10 minuts

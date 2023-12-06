@@ -4,7 +4,7 @@ import numpy as np
 import struct
 import os
 taken_cluster=5
-clusters=20
+clusters=30
 vector_dim = 70
 total_dim = 71
 
