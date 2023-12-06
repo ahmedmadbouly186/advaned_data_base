@@ -105,7 +105,9 @@ optimization: i have no idea what is it, i devide the code into smaller blocks a
 100K: (0.0, 1.8101657231648762)
 1M: (0.0, 20.595874071121216)
 
-
+optimization : 3 randomvector instead of 2 "it is weird to give us optimal solusion but any way we need to strss test it "
+100K : (0.0, 2.0275888442993164)
+1M:(0.0, 14.752898693084717)
 
 //////////////////////////////////////////////////////////////////////// INSERTION
 100K:insirtion time 22.027479648590088

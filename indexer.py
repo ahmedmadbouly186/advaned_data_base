@@ -6,7 +6,7 @@ import os
 import threading
 vector_dim = 70
 total_dim = 71
-num_random_vectors = 2
+num_random_vectors = 3
 similarity_threshold = 0.75
 num_bytes = 8*70
 num_threads=1
@@ -85,13 +85,13 @@ class VecDBWorst:
         self.random_vectors = random_vectors
     
     
-    def gram_schmidt(self,vectors):
-        basis = []
-        for vector in vectors:
-            for existing_vector in basis:
-                vector -= np.dot(vector, existing_vector) / np.dot(existing_vector, existing_vector) * existing_vector
-            basis.append(vector)
-        return basis
+    # def gram_schmidt(self,vectors):
+    #     basis = []
+    #     for vector in vectors:
+    #         for existing_vector in basis:
+    #             vector -= np.dot(vector, existing_vector) / np.dot(existing_vector, existing_vector) * existing_vector
+    #         basis.append(vector)
+    #     return basis
     def generate_random_vectors(self,num_vectors):
         vectors = []
         for i in range(num_vectors):
@@ -197,10 +197,4 @@ class VecDBWorst:
 
     def _build_index(self):
         pass
-
-
-# db = VecDBWorst(new_db=True)
-# records_np = np.random.random((1000, 3))
-# records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
-# db.insert_records(records_dict)
 
