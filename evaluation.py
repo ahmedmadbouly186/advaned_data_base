@@ -60,7 +60,7 @@ def eval(results: List[Result]):
 
 if __name__ == "__main__":
     threads = []
-    for i in range(3):
+    for i in range(10):
         db = VecDBWorst(new_db=True,)
         records_np = np.random.random((1000000, 70))
         records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
@@ -70,7 +70,11 @@ if __name__ == "__main__":
         toc = time.time()
         run_time = toc - tic
         print("insirtion time", run_time)
-        res = run_queries(db, records_np, 5, 1)
+        res = run_queries(db, records_np, 10, 1)
+        print(eval(res))
+        res = run_queries(db, records_np, 10, 1)
+        print(eval(res))
+        res = run_queries(db, records_np, 10, 1)
         print(eval(res))
         
     # records_np = np.concatenate([records_np, np.random.random((90000, 70))])
@@ -80,32 +84,3 @@ if __name__ == "__main__":
     # res = run_queries(db, records_np, 5, 10)
     # print(eval(res))
 
-    # records_np = np.concatenate([records_np, np.random.random((900000, 70))])
-    # records_dict = [{"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
-    # _len = len(records_np)
-    # db.insert_records(records_dict)
-    # res = run_queries(db, records_np, 5, 10)
-    # eval(res)
-
-    # records_np = np.concatenate([records_np, np.random.random((4000000, 70))])
-    # records_dict = [{"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
-    # _len = len(records_np)
-    # db.insert_records(records_dict)
-    # res = run_queries(db, records_np, 5, 10)
-    # eval(res)
-
-    # records_np = np.concatenate([records_np, np.random.random((5000000, 70))])
-    # records_dict = [{"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
-    # _len = len(records_np)
-    # db.insert_records(records_dict)
-    # res = run_queries(db, records_np, 5, 10)
-    # eval(res)
-
-    # records_np = np.concatenate([records_np, np.random.random((5000000, 70))])
-    # records_dict = [{"id": i +  _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
-    # _len = len(records_np)
-    # db.insert_records(records_dict)
-    # res = run_queries(db, records_np, 5, 10)
-    # eval(res)
-
-    

@@ -3,8 +3,8 @@ from sklearn.cluster import KMeans
 import numpy as np
 import struct
 import os
-taken_cluster=5
-clusters=30
+taken_cluster = 20
+clusters = 50
 vector_dim = 70
 total_dim = 71
 

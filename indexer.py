@@ -8,7 +8,7 @@ from kmeans import VecDBKmeans
  
 vector_dim = 70
 total_dim = 71
-num_random_vectors = 3
+num_random_vectors = 2
 similarity_threshold = 0.75
 num_bytes = 8*70
 num_threads=1
