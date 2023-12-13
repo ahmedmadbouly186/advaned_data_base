@@ -1,6 +1,6 @@
 import numpy as np
 from kmeans import VecDBKmeans
-from indexer import VecDB
+from vec_db import VecDB
 import time
 from dataclasses import dataclass
 from typing import List
