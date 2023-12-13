@@ -1,20 +1,21 @@
 import numpy as np
 from kmeans import VecDBKmeans
-from indexer import VecDBWorst
+from indexer import VecDB
 import time
 from dataclasses import dataclass
 from typing import List
-
+import gc
+from memory_profiler import memory_usage
 AVG_OVERX_ROWS = 10
-
 @dataclass
 class Result:
     run_time: float
     top_k: int
     db_ids: List[int]
     actual_ids: List[int]
-
+results=[]
 def run_queries(db, np_rows, top_k, num_runs):
+    global results
     results = []
     for _ in range(num_runs):
         query = np.random.random((1,70))
@@ -34,7 +35,14 @@ def run_queries(db, np_rows, top_k, num_runs):
         # print("----------------------------")
 
         results.append(Result(run_time, top_k, db_ids, actual_ids))
-    return results
+    # return results
+
+def memory_usage_run_queries(args):
+    global results
+    # This part is added to calcauate the RAM usage
+    mem_before = max(memory_usage())
+    mem = memory_usage(proc=(run_queries, args, {}), interval = 1e-3)
+    return results, max(mem) - mem_before
 
 def eval(results: List[Result]):
     # scores are negative. So getting 0 is the best score.
@@ -60,9 +68,11 @@ def eval(results: List[Result]):
 
 if __name__ == "__main__":
     threads = []
-    for i in range(10):
-        db = VecDBWorst(new_db=True,)
-        records_np = np.random.random((1000000, 70))
+    record_num = 100000
+    for i in range(1):
+        rng = np.random.default_rng(50)
+        db = VecDB()
+        records_np = rng.random((record_num, 70),dtype=np.float32)
         records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
         _len = len(records_np)
         tic = time.time()
@@ -70,17 +80,9 @@ if __name__ == "__main__":
         toc = time.time()
         run_time = toc - tic
         print("insirtion time", run_time)
-        res = run_queries(db, records_np, 10, 1)
-        print(eval(res))
-        res = run_queries(db, records_np, 10, 1)
-        print(eval(res))
-        res = run_queries(db, records_np, 10, 1)
-        print(eval(res))
-        
-    # records_np = np.concatenate([records_np, np.random.random((90000, 70))])
-    # records_dict = [{"id": i + _len, "embed": list(row)} for i, row in enumerate(records_np[_len:])]
-    # _len = len(records_np)
-    # db.insert_records(records_dict)
-    # res = run_queries(db, records_np, 5, 10)
-    # print(eval(res))
-
+        res, mem = memory_usage_run_queries((db,records_np, 5, 3))
+        print(f"record_num={record_num} ",eval(res),f"RAM\t{mem:.2f} MB")
+        res, mem = memory_usage_run_queries((db,records_np, 5, 3))
+        print(f"record_num={record_num} ",eval(res),f"RAM\t{mem:.2f} MB")
+        res, mem = memory_usage_run_queries((db,records_np, 5, 3))
+        print(f"record_num={record_num} ",eval(res),f"RAM\t{mem:.2f} MB")

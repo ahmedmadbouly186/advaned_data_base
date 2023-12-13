@@ -3,8 +3,9 @@ from sklearn.cluster import KMeans
 import numpy as np
 import struct
 import os
-taken_cluster = 20
-clusters = 50
+import gc
+taken_cluster = 100
+clusters = 500
 vector_dim = 70
 total_dim = 71
 
@@ -18,12 +19,15 @@ class VecDBKmeans:
         if not os.path.exists(folder_path):
             # Create the folder
             os.makedirs(folder_path)
+            open("./"+str(self.index)+"kmeans_files/centroids.csv", 'w').close()
 
         if new_db:
+            open("./"+str(self.index)+"kmeans_files/centroids.csv", 'w').close()
             # just open new file to delete the old one
-            with open(self.file_path, "w") as fout:
-                # if you need to add any head to the file
-                pass
+            for i in range(clusters):
+                open("./"+str(self.index)+f"kmeans_files/cluster_{i}.csv", 'w').close()
+           
+            
 
     def insert_records(self, rows: List[Dict[int, Annotated[List[float], 70]]]):
 
@@ -33,8 +37,9 @@ class VecDBKmeans:
             id, embed = row["id"], row["embed"]
             embeddings.append(embed)
             ids.append(id)
-
-        self.create_clusters(ids, embeddings, k=clusters)
+        if(len(ids)==0):
+            return
+        self.create_clusters(ids, embeddings, k=min(len(ids),clusters))
         self._build_index()
 
     def create_clusters(self, ids, embeddings, k):
@@ -60,7 +65,7 @@ class VecDBKmeans:
         # for each cluster save the vectors with the same label to the correct file
         # there should be k files 
         for i in range(k):
-            with open(f"./"+str(self.index)+f"kmeans_files/cluster_{i}.csv", 'wb') as cluster:
+            with open(f"./"+str(self.index)+f"kmeans_files/cluster_{i}.csv", 'ab') as cluster:
                 labels_indices = np.where(kmeans.labels_ == i)[0]   # returns the indices of labels of a specific cluster
                 for index in labels_indices:    # loops on all the label indices to get the embedding that matches the index label  
                     embed = embeddings[index]   
@@ -74,7 +79,6 @@ class VecDBKmeans:
                         cluster.write(float_bytes)
 
     def retrive(self, query: Annotated[List[float], 70], top_k=5):
-
         # read all the centroids from the file
         # calculates the cosine similarity between the query and all the centroids and takes top 3 centroids to search in
         centroids_scores = []
@@ -85,13 +89,15 @@ class VecDBKmeans:
                 embed = [float(e) for e in row_splits[1:]]
                 c_score = self._cal_score(query, embed)
                 centroids_scores.append((c_score, cluster))
-            centroids_scores = sorted(centroids_scores, reverse=True)
+        centroids_scores = sorted(centroids_scores, reverse=True)
 
-        target_clusters = [centroids_scores[i][1] for i in range(taken_cluster)] # top 3 similary centroids
+        target_clusters = [centroids_scores[i][1] for i in range(len(centroids_scores))] 
 
         kmeans_scores = []
         # calculate the cosine similarty in the files of similar centroids
         for i in range(len(target_clusters)):
+            if(i>=taken_cluster and len(kmeans_scores)>=top_k):
+                break
             file_path=f"./"+str(self.index)+f"kmeans_files/cluster_{target_clusters[i]}.csv"
             total_bytes=os.path.getsize(file_path)
             with open(file_path, "rb") as fcluster:
@@ -112,14 +118,8 @@ class VecDBKmeans:
                         index+=1
                     kmeans_score = self._cal_score(query, row[1:])
                     kmeans_scores.append((kmeans_score, id))
-                # for row in fcluster.readlines():
-                #     row_splits = row.split(",")
-                #     id = int(row_splits[0])
-                #     embed = [float(e) for e in row_splits[1:]]
-                #     kmeans_score = self._cal_score(query, embed)
-                #     kmeans_scores.append((kmeans_score, id))
         # sort the scores descendingly to get the top k similar vectors
-        kmeans_scores = sorted(kmeans_scores, reverse=True)[:top_k]
+        kmeans_scores = sorted(kmeans_scores, reverse=True)[:min(len(kmeans_scores),top_k)]
         top_k_kmeans = [(ks[0],ks[1]) for ks in kmeans_scores]
         return top_k_kmeans
 

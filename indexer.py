@@ -4,11 +4,13 @@ import struct
 import csv
 import os
 import threading
+import gc
 from kmeans import VecDBKmeans
  
 vector_dim = 70
 total_dim = 71
 num_random_vectors = 2
+taken_buckets = num_random_vectors+1
 similarity_threshold = 0.75
 num_bytes = 8*70
 num_threads=1
@@ -49,7 +51,7 @@ def retrive_thred(query,top_k, data,restored_matrix):
     scores = sorted(scores, reverse=True)[:top_k]
     restored_matrix.extend([s[1] for s in scores])
 
-class VecDBWorst:
+class VecDB:
     def __init__(self, file_path = "saved_db.csv",meta_data_path="meta.csv", new_db = True) -> None:
         self.file_path = file_path
         self.meta_data_path=meta_data_path
@@ -110,28 +112,16 @@ class VecDBWorst:
         # },   "embed" : [70 dim vector]
         # 
         # ]
-        files=[]
         data=[]
         for i in range(2**num_random_vectors):
             data.append([])
-        # for path in self.file_paths:
-        #     fout = open(path, 'ab')
-        #     files.append(fout)
         for row in rows:
             id, embed = row["id"], row["embed"]
             bucket_index=self.find_bucket_index(embed)
             data[bucket_index].append(row)
-            # fout=files[bucket_index]
-            # fout.write(struct.pack('>i', id))
-            # for num in embed:
-            #     # Convert each integer to bytes (using 4 bytes in this example) and write to file
-            #     float_bytes = struct.pack('>f', float(num))
-            #     fout.write(float_bytes)
-        # for file in files:
-        #     file.close()
         for i in range(len(data)):
-            # print(len(data[i]))
-            self.kmeans[i].insert_records(data[i])
+            if(len(data[i])>0):
+                self.kmeans[i].insert_records(data[i])
         self._build_index()
         
     def find_bucket_index(self, query):
@@ -142,51 +132,27 @@ class VecDBWorst:
             if(temp_score>similarity_threshold):
                 bucket=bucket+1
         return bucket
-            
+         
+    def hamming_distance(self ,a, b):
+        return bin(a ^ b).count('1')
+
+    def custom_sort(self,element):
+        return self.hamming_distance(element, self.target_bucket)
+
     def retrive(self, query: Annotated[List[float], 70], top_k = 5):        
         bucket_index=self.find_bucket_index(query)
+        self.target_bucket=bucket_index
         global_scores=[]
-        for i in range (num_random_vectors+1):
-            # scores = []
-            restored_matrix = []
-            temp_bucket_index=bucket_index
-
-            if(i!=0):
-                temp_bucket_index=bucket_index^(1<<(i-1))
-
-            # print(temp_bucket_index)
+        buckets=[ i for i in range(2**num_random_vectors)]
+        sorted_buckets = sorted(buckets, key=self.custom_sort)
+        for i in range (len(sorted_buckets)):
+            if(i>=taken_buckets and len(global_scores)>top_k):
+                break
+            temp_bucket_index=sorted_buckets[i]
             kmeans=self.kmeans[temp_bucket_index]
             scores=kmeans.retrive(query,top_k)
-            # print(scores)
             global_scores.extend(scores)
-            # file_path =self.file_paths[temp_bucket_index] 
-            # total_bytes=os.path.getsize(file_path)
-            # with open(file_path, 'rb') as file:
-            #     data = file.read(total_bytes)
-            #     records=(len(data)//4)//(total_dim)
-            #     threads=[]
-            #     for i in range(num_threads):
-            #         threads.append(threading.Thread(target=retrive_thred, args=(query[0],top_k,data[(records*i//num_threads)*total_dim*4:(records*(i+1)//num_threads)*total_dim*4],restored_matrix)))
-            #         threads[i].start()
-            #     for i in range(num_threads):
-            #         threads[i].join()
-
-            # it is 2d matrix
-            # each elemnt represent a row
-            # the first element of each row is the id, the rest is the embed
-
-            # for row in restored_matrix:
-            #     id = row[0]
-            #     embed = row[1:]
-            #     score = self._cal_score(query, embed)
-            #     scores.append((score, id))
-
-            # here we assume that if two rows have the same score, return the lowest ID
-            # scores = sorted(scores, reverse=True)[:top_k]#sort in decreasing order , the best choice is the biggest one
-            # global_scores.extend(scores)
-        
-        global_scores=sorted(global_scores, reverse=True)[:top_k]
-        # print([s[1] for s in global_scores])
+        global_scores=sorted(global_scores, reverse=True)[:min(top_k,len(global_scores))]
         return [s[1] for s in global_scores]
     
     def _cal_score(self, vec1, vec2):
