@@ -6,13 +6,12 @@ import os
 import threading
 import gc
 from kmeans import VecDBKmeans
- 
+import time
 vector_dim = 70
 total_dim = 71
 num_random_vectors = 2
 taken_buckets = num_random_vectors+1
 similarity_threshold = 0.75
-num_bytes = 8*70
 num_threads=1
 
 
@@ -54,16 +53,22 @@ def retrive_thred(query,top_k, data,restored_matrix):
 class VecDB:
     def __init__(self, file_path = "saved_db.csv",meta_data_path="meta.csv", new_db = True) -> None:
         self.file_path = file_path
-        self.meta_data_path=meta_data_path
         self.file_paths=[]
         self.kmeans=[]
         random_vectors = []
+        self.folder_path = os.path.join(os.getcwd(),file_path.split('.')[0] )
+        self.meta_data_path='./'+file_path.split('.')[0]+'/'+meta_data_path
+
+        # Check if the folder already exists
+        if not os.path.exists(self.folder_path):
+            # Create the folder
+            os.makedirs(self.folder_path)
         if new_db:
             # just open new file to delete the old one
             # with open(self.file_path, "w") as fout:
             #     # if you need to add any head to the file
             #     pass
-            with open(meta_data_path, "w") as file:
+            with open(self.meta_data_path, "w") as file:
                 random_vectors = self.generate_random_vectors(num_random_vectors)
                 for vector in random_vectors:
                     row_str = ",".join([str(e) for e in vector])
@@ -74,21 +79,21 @@ class VecDB:
                 pass
             
         else:
-            with open(meta_data_path, "r") as file:
+            with open(self.meta_data_path, "r") as file:
                 for line in file:
                     row_splits = line.split(",")
                     # float_values = [float(value) for value in line[1:-2].split()]
                     random_vectors.append([float(e) for e in row_splits[:]])
-        # create 2**num_random_vectors files
-        for i in range(2**num_random_vectors):
-            self.file_paths.append(str(i+1)+"_"+self.file_path)
-            if new_db :
-                with open(self.file_paths[i], "w") as fout:
-                    # store fout in a list to use it later
-                    pass
+        # # create 2**num_random_vectors files
+        # for i in range(2**num_random_vectors):
+        #     self.file_paths.append(str(i+1)+"_"+self.file_path)
+        #     if new_db :
+        #         with open(self.file_paths[i], "w") as fout:
+        #             # store fout in a list to use it later
+        #             pass
         self.random_vectors = random_vectors
         for i in range(2**num_random_vectors):
-            self.kmeans.append(VecDBKmeans(i,self.file_paths[i],new_db))
+            self.kmeans.append(VecDBKmeans(index=i,folder_path=file_path.split('.')[0],new_db=new_db))
     
     # def gram_schmidt(self,vectors):
     #     basis = []
@@ -105,20 +110,35 @@ class VecDB:
 
         return vectors
 
-    def insert_records(self, rows: List[Dict[int, Annotated[List[float], 70]]]):
+    def insert_records(self, rows: List[Dict[int, Annotated[List[float], 70]]],dic=True,rows_list=[]):
         # rows has the following shape [
         # {
         #     "id": the actual id,
         # },   "embed" : [70 dim vector]
         # 
         # ]
-        data=[]
+        data = np.empty((2**num_random_vectors,), dtype=object)
+
         for i in range(2**num_random_vectors):
-            data.append([])
-        for row in rows:
-            id, embed = row["id"], row["embed"]
-            bucket_index=self.find_bucket_index(embed)
-            data[bucket_index].append(row)
+            data[i]=[]
+        
+        if(dic):
+            for row in rows:
+                id, embed = row["id"], row["embed"]
+                bucket_index=self.find_bucket_index(embed)
+                data[bucket_index].append([id]+embed)
+        else :
+            # index = np.arange(len(rows_list))
+            # bucket_indices = np.vectorize(self.find_bucket_index)(rows_list)
+            # unique_indices, index_mask = np.unique(bucket_indices, return_inverse=True)
+            # split_indices = np.split(index, np.cumsum(np.bincount(index_mask)[:-1]))
+            # data = np.array([np.column_stack((split, np.column_stack(rows_list[split]))) for split in split_indices])
+            index=0
+            for row in rows_list:
+                bucket_index=self.find_bucket_index(row)
+                data[bucket_index].append([index]+list(row))
+                index+=1
+
         for i in range(len(data)):
             if(len(data[i])>0):
                 self.kmeans[i].insert_records(data[i])

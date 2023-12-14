@@ -5,43 +5,84 @@ import struct
 import os
 import gc
 taken_cluster = 100
-clusters = 500
+clusters = 1000
 vector_dim = 70
 total_dim = 71
 
 class VecDBKmeans:
-    def __init__(self,index=0, file_path="saved_db.csv", new_db=True) -> None:
-        self.file_path = file_path
+    def __init__(self,index=0, folder_path="saved_db", new_db=True) -> None:
         self.index=index
-        folder_path = os.path.join(os.getcwd(), str(self.index)+"kmeans_files")
+        self.folder_path = './'+folder_path+'/'+str(self.index)+"kmeans_files"
+
+        folder_path = os.path.join(os.getcwd(), self.folder_path)
 
         # Check if the folder already exists
         if not os.path.exists(folder_path):
             # Create the folder
             os.makedirs(folder_path)
-            open("./"+str(self.index)+"kmeans_files/centroids.csv", 'w').close()
+            open(f"{self.folder_path}/centroids.csv", 'w').close()
 
         if new_db:
-            open("./"+str(self.index)+"kmeans_files/centroids.csv", 'w').close()
+            open(f"{self.folder_path}/centroids.csv", 'w').close()
             # just open new file to delete the old one
             for i in range(clusters):
-                open("./"+str(self.index)+f"kmeans_files/cluster_{i}.csv", 'w').close()
+                open(f"{self.folder_path}/cluster_{i}.csv", 'w').close()
            
-            
-
-    def insert_records(self, rows: List[Dict[int, Annotated[List[float], 70]]]):
-
-        embeddings = []
-        ids = []
+    def insert_records(self, rows: List[ Annotated[List[float], 71]],dic=True):
+        embeddings = [0]*len(rows)
+        ids = [0]*len(rows)
+        index=0
         for row in rows:
-            id, embed = row["id"], row["embed"]
-            embeddings.append(embed)
-            ids.append(id)
+            id, embed = row[0], row[1:]
+            embeddings[index]=embed
+            ids[index]=id
+            index+=1
         if(len(ids)==0):
             return
         self.create_clusters(ids, embeddings, k=min(len(ids),clusters))
         self._build_index()
-
+        
+    def retrive_centers(self,path):
+        centroid_path=path
+        total_bytes=os.path.getsize(centroid_path)
+        centers=[]
+        with open(centroid_path, "rb") as centroids:
+            data = centroids.read(total_bytes)
+            records=(len(data)//4)//(total_dim) 
+            current_byte=0
+            for i in range (records):
+                row=[0]*total_dim
+                # Read the id (integer) from file (4 bytes)
+                cluster = struct.unpack('>i', data[current_byte:current_byte+4])[0]
+                current_byte+=4
+                embed = struct.unpack('>' + 'f' * 70, data[current_byte:current_byte+vector_dim*4])
+                current_byte+=vector_dim*4
+                row[0]=cluster
+                row[1:]=embed
+                centers.append(row)
+        return centers
+    
+    def insert_centers(self,path,centers):
+        file_index = 0
+        # with open(f"{self.folder_path}/centroids.csv", 'w') as centroids:
+        #     for centroid in kmeans.cluster_centers_:
+        #         row_str = f"{file_index}," + \
+        #             ",".join([str(c) for c in centroid])
+        #         centroids.write(f"{row_str}\n")
+        #         file_index += 1
+        
+        
+        
+        
+        # write centers
+        with open(path, 'wb') as centroids:
+            for centroid in centers:
+                centroids.write(struct.pack('>i', file_index))
+                for c in centroid:
+                    float_bytes = struct.pack('>f', float(c))
+                    centroids.write(float_bytes)
+                file_index += 1
+    
     def create_clusters(self, ids, embeddings, k):
         '''
         creates an object of Kmeans and clusters the given data accordingly
@@ -54,43 +95,31 @@ class VecDBKmeans:
         kmeans.fit(embeddings)
 
         # save centroids with their file name
-        file_index = 0
-        with open("./"+str(self.index)+"kmeans_files/centroids.csv", 'w') as centroids:
-            for centroid in kmeans.cluster_centers_:
-                row_str = f"{file_index}," + \
-                    ",".join([str(c) for c in centroid])
-                centroids.write(f"{row_str}\n")
-                file_index += 1
+        self.insert_centers(path=f"{self.folder_path}/centroids.csv",centers=kmeans.cluster_centers_)
 
         # for each cluster save the vectors with the same label to the correct file
         # there should be k files 
         for i in range(k):
-            with open(f"./"+str(self.index)+f"kmeans_files/cluster_{i}.csv", 'ab') as cluster:
+            with open(f"{self.folder_path}/cluster_{i}.csv", 'ab') as cluster:
                 labels_indices = np.where(kmeans.labels_ == i)[0]   # returns the indices of labels of a specific cluster
                 for index in labels_indices:    # loops on all the label indices to get the embedding that matches the index label  
                     embed = embeddings[index]   
                     id = ids[index]
-                    # row_str = f"{ids[index]}," + \
-                    #     ",".join([str(e) for e in embed])
-                    # cluster.write(f"{row_str}\n")
                     cluster.write(struct.pack('>i', id))
                     for num in embed:
                         float_bytes = struct.pack('>f', float(num))
                         cluster.write(float_bytes)
-
+    
     def retrive(self, query: Annotated[List[float], 70], top_k=5):
         # read all the centroids from the file
         # calculates the cosine similarity between the query and all the centroids and takes top 3 centroids to search in
+        centroids=self.retrive_centers(path=f"{self.folder_path}/centroids.csv")
         centroids_scores = []
-        with open(f"./"+str(self.index)+"kmeans_files/centroids.csv", "r") as centroids:
-            for row in centroids.readlines():
-                row_splits = row.split(",")
-                cluster = int(row_splits[0])
-                embed = [float(e) for e in row_splits[1:]]
-                c_score = self._cal_score(query, embed)
-                centroids_scores.append((c_score, cluster))
+        for center in centroids:
+            c_score = self._cal_score(query, center[1:])
+            centroids_scores.append((c_score, center[0]))
+            
         centroids_scores = sorted(centroids_scores, reverse=True)
-
         target_clusters = [centroids_scores[i][1] for i in range(len(centroids_scores))] 
 
         kmeans_scores = []
@@ -98,7 +127,8 @@ class VecDBKmeans:
         for i in range(len(target_clusters)):
             if(i>=taken_cluster and len(kmeans_scores)>=top_k):
                 break
-            file_path=f"./"+str(self.index)+f"kmeans_files/cluster_{target_clusters[i]}.csv"
+            scores=[]
+            file_path=f"{self.folder_path}/cluster_{target_clusters[i]}.csv"
             total_bytes=os.path.getsize(file_path)
             with open(file_path, "rb") as fcluster:
                 data = fcluster.read(total_bytes)
@@ -117,7 +147,10 @@ class VecDBKmeans:
                         row[index]=num
                         index+=1
                     kmeans_score = self._cal_score(query, row[1:])
-                    kmeans_scores.append((kmeans_score, id))
+                    scores.append((kmeans_score, id))
+            kmeans_scores.extend(sorted(scores, reverse=True)[:min(len(scores),top_k)])
+            del scores
+            # gc.collect()
         # sort the scores descendingly to get the top k similar vectors
         kmeans_scores = sorted(kmeans_scores, reverse=True)[:min(len(kmeans_scores),top_k)]
         top_k_kmeans = [(ks[0],ks[1]) for ks in kmeans_scores]

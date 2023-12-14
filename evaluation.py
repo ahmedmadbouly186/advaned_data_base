@@ -68,18 +68,20 @@ def eval(results: List[Result]):
 
 if __name__ == "__main__":
     threads = []
-    record_num = 100000
+    record_num = 20000000
     for i in range(1):
         rng = np.random.default_rng(50)
-        db = VecDB()
+        db = VecDB(file_path='saved_db_20m.csv')
         records_np = rng.random((record_num, 70),dtype=np.float32)
-        records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
+        # records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
         _len = len(records_np)
         tic = time.time()
-        db.insert_records(records_dict)
+        # db.insert_records(records_dict)
+        db.insert_records([],dic=False,rows_list=records_np)
         toc = time.time()
         run_time = toc - tic
         print("insirtion time", run_time)
+        run_queries(db,records_np,5,5)
         res, mem = memory_usage_run_queries((db,records_np, 5, 3))
         print(f"record_num={record_num} ",eval(res),f"RAM\t{mem:.2f} MB")
         res, mem = memory_usage_run_queries((db,records_np, 5, 3))
