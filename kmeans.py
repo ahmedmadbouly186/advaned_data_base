@@ -4,7 +4,7 @@ import numpy as np
 import struct
 import os
 import gc
-taken_cluster = 100
+taken_cluster = 150
 clusters = 1000
 vector_dim = 70
 total_dim = 71
@@ -42,39 +42,21 @@ class VecDBKmeans:
         self.create_clusters(ids, embeddings, k=min(len(ids),clusters))
         self._build_index()
         
-    def retrive_centers(self,path):
+    def retrive_centers(self,path,centroids_list):
         centroid_path=path
         total_bytes=os.path.getsize(centroid_path)
-        centers=[]
         with open(centroid_path, "rb") as centroids:
             data = centroids.read(total_bytes)
             records=(len(data)//4)//(total_dim) 
             current_byte=0
             for i in range (records):
-                row=[0]*total_dim
-                # Read the id (integer) from file (4 bytes)
-                cluster = struct.unpack('>i', data[current_byte:current_byte+4])[0]
+                centroids_list[i][1] = struct.unpack('>i', data[current_byte:current_byte+4])[0]
                 current_byte+=4
-                embed = struct.unpack('>' + 'f' * 70, data[current_byte:current_byte+vector_dim*4])
+                centroids_list[i][2:]= struct.unpack('>' + 'f' * 70, data[current_byte:current_byte+vector_dim*4])
                 current_byte+=vector_dim*4
-                row[0]=cluster
-                row[1:]=embed
-                centers.append(row)
-        return centers
     
     def insert_centers(self,path,centers):
         file_index = 0
-        # with open(f"{self.folder_path}/centroids.csv", 'w') as centroids:
-        #     for centroid in kmeans.cluster_centers_:
-        #         row_str = f"{file_index}," + \
-        #             ",".join([str(c) for c in centroid])
-        #         centroids.write(f"{row_str}\n")
-        #         file_index += 1
-        
-        
-        
-        
-        # write centers
         with open(path, 'wb') as centroids:
             for centroid in centers:
                 centroids.write(struct.pack('>i', file_index))
@@ -110,19 +92,17 @@ class VecDBKmeans:
                         float_bytes = struct.pack('>f', float(num))
                         cluster.write(float_bytes)
     
-    def retrive(self, query: Annotated[List[float], 70], top_k=5):
+    def retrive(self,centroids, query: Annotated[List[float], 70], top_k=5):
         # read all the centroids from the file
         # calculates the cosine similarity between the query and all the centroids and takes top 3 centroids to search in
-        centroids=self.retrive_centers(path=f"{self.folder_path}/centroids.csv")
-        centroids_scores = []
+        self.retrive_centers(path=f"{self.folder_path}/centroids.csv",centroids_list=centroids)
         for center in centroids:
-            c_score = self._cal_score(query, center[1:])
-            centroids_scores.append((c_score, center[0]))
+            c_score = self._cal_score(query, center[2:])
+            center[0]=c_score
             
-        centroids_scores = sorted(centroids_scores, reverse=True)
-        target_clusters = [centroids_scores[i][1] for i in range(len(centroids_scores))] 
-
+        target_clusters = np.argsort(centroids[:, 0])[::-1]
         kmeans_scores = []
+        row=[0]*total_dim
         # calculate the cosine similarty in the files of similar centroids
         for i in range(len(target_clusters)):
             if(i>=taken_cluster and len(kmeans_scores)>=top_k):
@@ -135,7 +115,6 @@ class VecDBKmeans:
                 records=(len(data)//4)//(total_dim)
                 current_byte=0
                 for i in range (records):
-                    row=[0]*total_dim
                     # Read the id (integer) from file (4 bytes)
                     id = struct.unpack('>i', data[current_byte:current_byte+4])[0]
                     current_byte+=4
@@ -148,13 +127,11 @@ class VecDBKmeans:
                         index+=1
                     kmeans_score = self._cal_score(query, row[1:])
                     scores.append((kmeans_score, id))
+                del data
+                # gc.collect()
             kmeans_scores.extend(sorted(scores, reverse=True)[:min(len(scores),top_k)])
-            del scores
-            # gc.collect()
         # sort the scores descendingly to get the top k similar vectors
-        kmeans_scores = sorted(kmeans_scores, reverse=True)[:min(len(kmeans_scores),top_k)]
-        top_k_kmeans = [(ks[0],ks[1]) for ks in kmeans_scores]
-        return top_k_kmeans
+        return sorted(kmeans_scores, reverse=True)[:min(len(kmeans_scores),top_k)]
 
     def _cal_score(self, vec1, vec2):
         dot_product = np.dot(vec1, vec2)
@@ -165,3 +142,4 @@ class VecDBKmeans:
 
     def _build_index(self):
         pass
+

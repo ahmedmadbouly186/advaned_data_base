@@ -266,23 +266,9 @@ def retrive():
 # run_time = toc - tic
 # print("read time", run_time)
 # print(len(data))
-data=[]
-def append(start,end,data):
-    # global data
-    for i in range(start,end):
-        data.append(i)
-    
-import threading
-thread1=threading.Thread(target=append, args=(0,1000000,data))
-thread2=threading.Thread(target=append, args=(1000000,2000000,data))
-
-thread1.start()
-thread2.start()
-thread1.join()
-thread2.join()
-print(len(data))
-for i in range(len(data)-1):
-    if(data[i]>data[i+1]):
-        print("error",i)
-        print(data[i],data[i+1])
-        break
+import numpy as np
+cendroids=np.random.random((10, 72))
+indices = np.argsort(cendroids[:, 0])
+print(indices)
+for i in indices:
+    print(i)
