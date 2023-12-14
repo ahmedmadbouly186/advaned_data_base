@@ -4,8 +4,11 @@ import numpy as np
 import struct
 import os
 import gc
-taken_cluster = 150
-clusters = 1000
+import time
+# taken_cluster = 150
+# clusters = 1000
+taken_cluster=1
+clusters=1
 vector_dim = 70
 total_dim = 71
 
@@ -28,18 +31,10 @@ class VecDBKmeans:
             for i in range(clusters):
                 open(f"{self.folder_path}/cluster_{i}.csv", 'w').close()
            
-    def insert_records(self, rows: List[ Annotated[List[float], 71]],dic=True):
-        embeddings = [0]*len(rows)
-        ids = [0]*len(rows)
-        index=0
-        for row in rows:
-            id, embed = row[0], row[1:]
-            embeddings[index]=embed
-            ids[index]=id
-            index+=1
+    def insert_records(self, rows: List[ Annotated[List[float], 70]],ids: List[int]):
         if(len(ids)==0):
             return
-        self.create_clusters(ids, embeddings, k=min(len(ids),clusters))
+        self.create_clusters(ids, rows, k=min(len(ids),clusters))
         self._build_index()
         
     def retrive_centers(self,path,centroids_list):
@@ -73,12 +68,13 @@ class VecDBKmeans:
         '''
 
         # create a kmeans object and call fit 
+        tic=time.time()
         kmeans = KMeans(n_clusters=k, random_state=0, n_init='auto')
         kmeans.fit(embeddings)
-
         # save centroids with their file name
         self.insert_centers(path=f"{self.folder_path}/centroids.csv",centers=kmeans.cluster_centers_)
-
+        toc=time.time()
+        print("kmeans ", toc-tic)
         # for each cluster save the vectors with the same label to the correct file
         # there should be k files 
         for i in range(k):
@@ -95,6 +91,7 @@ class VecDBKmeans:
     def retrive(self,centroids, query: Annotated[List[float], 70], top_k=5):
         # read all the centroids from the file
         # calculates the cosine similarity between the query and all the centroids and takes top 3 centroids to search in
+        centroids=np.empty((clusters,72), dtype=np.float32)
         self.retrive_centers(path=f"{self.folder_path}/centroids.csv",centroids_list=centroids)
         for center in centroids:
             c_score = self._cal_score(query, center[2:])
