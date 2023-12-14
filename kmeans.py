@@ -4,8 +4,11 @@ import numpy as np
 import struct
 import os
 import gc
-taken_cluster = 150
-clusters = 1000
+import time
+# taken_cluster = 150
+# clusters = 1000
+taken_cluster=150
+clusters=1000
 vector_dim = 70
 total_dim = 71
 
@@ -20,51 +23,47 @@ class VecDBKmeans:
         if not os.path.exists(folder_path):
             # Create the folder
             os.makedirs(folder_path)
-            open(f"{self.folder_path}/centroids.csv", 'w').close()
 
         if new_db:
             open(f"{self.folder_path}/centroids.csv", 'w').close()
-            # just open new file to delete the old one
-            for i in range(clusters):
-                open(f"{self.folder_path}/cluster_{i}.csv", 'w').close()
+            open(f"{self.folder_path}/data.csv", 'w').close()
            
-    def insert_records(self, rows: List[ Annotated[List[float], 71]],dic=True):
-        embeddings = [0]*len(rows)
-        ids = [0]*len(rows)
-        index=0
-        for row in rows:
-            id, embed = row[0], row[1:]
-            embeddings[index]=embed
-            ids[index]=id
-            index+=1
+    def insert_records(self, rows: List[ Annotated[List[float], 70]],ids: List[int]):
         if(len(ids)==0):
             return
-        self.create_clusters(ids, embeddings, k=min(len(ids),clusters))
+        self.create_clusters(ids, rows, k=min(len(ids),clusters))
         self._build_index()
         
-    def retrive_centers(self,path,centroids_list):
-        centroid_path=path
-        total_bytes=os.path.getsize(centroid_path)
-        with open(centroid_path, "rb") as centroids:
-            data = centroids.read(total_bytes)
-            records=(len(data)//4)//(total_dim) 
-            current_byte=0
-            for i in range (records):
-                centroids_list[i][1] = struct.unpack('>i', data[current_byte:current_byte+4])[0]
-                current_byte+=4
-                centroids_list[i][2:]= struct.unpack('>' + 'f' * 70, data[current_byte:current_byte+vector_dim*4])
-                current_byte+=vector_dim*4
+    def retrive_centers(self,path):
+        total_bytes=os.path.getsize(path)
+        records=(total_bytes//4)//(vector_dim) 
+        centroids_list=np.zeros((records,vector_dim), dtype=np.float32)
+        memmap_array_read = np.memmap(path, dtype=np.float32, mode='r', shape=(records, vector_dim))
+        centroids_list[:,:]=memmap_array_read[:,:]
+        del memmap_array_read
+        return centroids_list
     
     def insert_centers(self,path,centers):
-        file_index = 0
-        with open(path, 'wb') as centroids:
-            for centroid in centers:
-                centroids.write(struct.pack('>i', file_index))
-                for c in centroid:
-                    float_bytes = struct.pack('>f', float(c))
-                    centroids.write(float_bytes)
-                file_index += 1
+        memmap_array = np.memmap(path, dtype=np.float32, mode='w+', shape=(len(centers),vector_dim) )
+        memmap_array[:,:]=centers
+        memmap_array.flush()
+        del memmap_array
     
+    def insert_boundries(self,path,boundries):
+        memmap_array = np.memmap(path, dtype=np.int32, mode='w+', shape=(len(boundries),2) )
+        memmap_array[:,:]=boundries
+        memmap_array.flush()
+        del memmap_array
+    
+    def retrive_boundries(self,path):
+        total_bytes=os.path.getsize(path)
+        records=(total_bytes//4)//(2) 
+        centers_boundries=np.zeros((records,2), dtype=np.int32)
+        memmap_array_read = np.memmap(path, dtype=np.int32, mode='r', shape=(records, 2))
+        centers_boundries[:,:]=memmap_array_read[:,:]
+        del memmap_array_read
+        return centers_boundries
+  
     def create_clusters(self, ids, embeddings, k):
         '''
         creates an object of Kmeans and clusters the given data accordingly
@@ -75,61 +74,52 @@ class VecDBKmeans:
         # create a kmeans object and call fit 
         kmeans = KMeans(n_clusters=k, random_state=0, n_init='auto')
         kmeans.fit(embeddings)
-
         # save centroids with their file name
         self.insert_centers(path=f"{self.folder_path}/centroids.csv",centers=kmeans.cluster_centers_)
-
-        # for each cluster save the vectors with the same label to the correct file
-        # there should be k files 
+        # for each cluster save the vectors with the same label to the part in the file
+        memmap_array = np.memmap(f"{self.folder_path}/data.csv", dtype=np.float32, mode='w+', shape=(len(embeddings),total_dim) )
+        start_index=0
+        centers_boundries=np.zeros((k,2), dtype=np.int32)
         for i in range(k):
-            with open(f"{self.folder_path}/cluster_{i}.csv", 'ab') as cluster:
-                labels_indices = np.where(kmeans.labels_ == i)[0]   # returns the indices of labels of a specific cluster
-                for index in labels_indices:    # loops on all the label indices to get the embedding that matches the index label  
-                    embed = embeddings[index]   
-                    id = ids[index]
-                    cluster.write(struct.pack('>i', id))
-                    for num in embed:
-                        float_bytes = struct.pack('>f', float(num))
-                        cluster.write(float_bytes)
-    
+            centers_boundries[i][0]=start_index
+            labels_indices = np.where(kmeans.labels_ == i)[0]
+            memmap_array[start_index:start_index+len(labels_indices),0]=ids[labels_indices]
+            memmap_array[start_index:start_index+len(labels_indices),1:]=embeddings[labels_indices]
+            start_index+=len(labels_indices)
+            centers_boundries[i][1]=start_index
+        memmap_array.flush()
+        del memmap_array   
+        self.insert_boundries(path=f"{self.folder_path}/centers_coundries.csv",boundries=centers_boundries)
+        gc.collect()
     def retrive(self,centroids, query: Annotated[List[float], 70], top_k=5):
         # read all the centroids from the file
         # calculates the cosine similarity between the query and all the centroids and takes top 3 centroids to search in
-        self.retrive_centers(path=f"{self.folder_path}/centroids.csv",centroids_list=centroids)
-        for center in centroids:
-            c_score = self._cal_score(query, center[2:])
-            center[0]=c_score
-            
-        target_clusters = np.argsort(centroids[:, 0])[::-1]
+        centroids = self.retrive_centers(path=f"{self.folder_path}/centroids.csv")
+        centers_boundries=self.retrive_boundries(path=f"{self.folder_path}/centers_coundries.csv")
+        c_scores = self._cal_scores(centroids, query.reshape(-1))
+        target_clusters = np.argsort(c_scores)[::-1]
         kmeans_scores = []
-        row=[0]*total_dim
+        
+        
+        # create memmap array to read the data from the file
+        data_path=f"{self.folder_path}/data.csv"
+        total_bytes=os.path.getsize(data_path)
+        records=(total_bytes//4)//(total_dim) 
+        memmap_array_read = np.memmap(data_path, dtype=np.float32, mode='r', shape=(records, total_dim))
         # calculate the cosine similarty in the files of similar centroids
         for i in range(len(target_clusters)):
             if(i>=taken_cluster and len(kmeans_scores)>=top_k):
                 break
-            scores=[]
-            file_path=f"{self.folder_path}/cluster_{target_clusters[i]}.csv"
-            total_bytes=os.path.getsize(file_path)
-            with open(file_path, "rb") as fcluster:
-                data = fcluster.read(total_bytes)
-                records=(len(data)//4)//(total_dim)
-                current_byte=0
-                for i in range (records):
-                    # Read the id (integer) from file (4 bytes)
-                    id = struct.unpack('>i', data[current_byte:current_byte+4])[0]
-                    current_byte+=4
-                    nums = struct.unpack('>' + 'f' * 70, data[current_byte:current_byte+vector_dim*4])
-                    current_byte+=vector_dim*4
-                    row[0]=id
-                    index=1
-                    for num in nums:
-                        row[index]=num
-                        index+=1
-                    kmeans_score = self._cal_score(query, row[1:])
-                    scores.append((kmeans_score, id))
-                del data
-                # gc.collect()
-            kmeans_scores.extend(sorted(scores, reverse=True)[:min(len(scores),top_k)])
+            start,end=centers_boundries[target_clusters[i]]
+            # create a list of scores to sort them later
+            rows=np.empty((end-start,70), dtype=np.float32)
+            rows[:,:]=memmap_array_read[start:end,1:]
+            ids=np.empty((end-start), dtype=np.int32)
+            ids[:]=memmap_array_read[start:end,0]
+            scores=self._cal_scores(rows, query.reshape(-1))
+            choosen_ids=np.argsort(scores)[::-1][:min(len(scores),top_k)]
+            kmeans_scores.extend([(scores[id],ids[id]) for id in choosen_ids])
+        del memmap_array_read
         # sort the scores descendingly to get the top k similar vectors
         return sorted(kmeans_scores, reverse=True)[:min(len(kmeans_scores),top_k)]
 
@@ -139,6 +129,15 @@ class VecDBKmeans:
         norm_vec2 = np.linalg.norm(vec2)
         cosine_similarity = dot_product / (norm_vec1 * norm_vec2)
         return cosine_similarity
+
+    def _cal_scores(self, vec_list, vec2):
+        dot_products = np.dot(vec_list, vec2)
+        # calc the euclidean norm of vec1 and vec2
+        # norm_vec1 = np.sqrt(np.sum(np.square(vec1)))
+        norm_vec1 = np.linalg.norm(vec_list, axis=1)
+        norm_vec2 = np.linalg.norm(vec2)
+        cosine_similarities = dot_products / (norm_vec1 * norm_vec2)
+        return cosine_similarities
 
     def _build_index(self):
         pass
