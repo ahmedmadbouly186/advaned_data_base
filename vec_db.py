@@ -16,39 +16,6 @@ num_threads=1
 
 
 
-def _cal_score( vec1, vec2):
-        dot_product = np.dot(vec1, vec2)
-        # calc the euclidean norm of vec1 and vec2
-        # norm_vec1 = np.sqrt(np.sum(np.square(vec1)))
-        norm_vec1 = np.linalg.norm(vec1)
-        norm_vec2 = np.linalg.norm(vec2)
-        cosine_similarity = dot_product / (norm_vec1 * norm_vec2)
-        return cosine_similarity
-def retrive_thred(query,top_k, data,restored_matrix):
-    records=(len(data)//4)//(total_dim)
-    current_byte=0
-    temp_matrix=[]
-    for i in range (records):
-        row=[0]*total_dim
-        # Read the id (integer) from file (4 bytes)
-        id = struct.unpack('>i', data[current_byte:current_byte+4])[0]
-        current_byte+=4
-        nums = struct.unpack('>' + 'f' * 70, data[current_byte:current_byte+vector_dim*4])
-        current_byte+=vector_dim*4
-        row[0]=id
-        index=1
-        for num in nums:
-            row[index]=num
-            index+=1
-        temp_matrix.append(row)
-    scores = []
-    for row in temp_matrix:
-            id = row[0]
-            embed = row[1:]
-            score = _cal_score(query, embed)
-            scores.append((score,row))
-    scores = sorted(scores, reverse=True)[:top_k]
-    restored_matrix.extend([s[1] for s in scores])
 
 class VecDB:
     def __init__(self, file_path = "saved_db.csv",meta_data_path="meta.csv", new_db = True) -> None:
@@ -101,6 +68,11 @@ class VecDB:
             vectors.append(np.random.random( vector_dim).astype(np.float32))
 
         return vectors
+    
+    # it is temparry function to insert the data in the first level
+    # this function devide the data into 2**num_random_vectors files
+    # each file has the data related to a specific bucket index
+    # it is used to insert the data in the first level , and then each bucket in te second level will be inserted in the respondeing kmeans independently
     def insert_level_1(self,rows_list):
         bucket_indices = self.find_bucket_indces(rows_list)
         bucket_indices_list = [np.where(bucket_indices == i)[0] for i in range(2**len(self.random_vectors))]
@@ -111,6 +83,8 @@ class VecDB:
             memmap_array[:,1:] = records_for_bucket[:]
             memmap_array.flush()
             del memmap_array
+    
+    
     def insert_level_2(self,index):
         path=f"./temp/data{index}.csv"
         total_bytes=os.path.getsize(path)
@@ -120,6 +94,7 @@ class VecDB:
         ids=memmap_array_read[:,0]
         self.kmeans[index].insert_records(rows=records_for_bucket,ids=ids) 
          
+    
     def insert_records(self, rows: List[Dict[int, Annotated[List[float], 70]]],dic=True,rows_list=[]):
         # rows has the following shape [
         # {
@@ -127,6 +102,8 @@ class VecDB:
         # },   "embed" : [70 dim vector]
         # 
         # ]
+        
+        # first step is to sort the rows based of there ids
         records_list=[]
         if(dic):
             records_list=np.empty((len(rows),vector_dim) , dtype=np.float32)
@@ -135,28 +112,35 @@ class VecDB:
                 records_list[id]=embed
         else :
             records_list=rows_list
+        # find the bucket index for each record
         bucket_indices = self.find_bucket_indces(records_list)
         bucket_indices_list = [np.where(bucket_indices == i)[0] for i in range(2**len(self.random_vectors))]
+        # select all records related to the same bucket index and insert it in the respondeing kmenas
         for bucket_index in range(2**len(self.random_vectors)):
             records_for_bucket = records_list[bucket_indices_list[bucket_index]]
             if(len(records_for_bucket)>0):
                 self.kmeans[bucket_index].insert_records(rows=records_for_bucket,ids=bucket_indices_list[bucket_index])
-        self._build_index()
          
     def hamming_distance(self ,a, b):
         return bin(a ^ b).count('1')
 
+    # sort all buckets based on the hamming distance between the target bucket and the bucket index
     def custom_sort(self,element):
         return self.hamming_distance(element, self.target_bucket)
 
-    def retrive(self, query: Annotated[List[float], 70], top_k = 5):        
+    
+    def retrive(self, query: Annotated[List[float], 70], top_k = 5): 
+        #    hash the input vector to find the bucket index
         bucket_index=self.find_bucket_index(query)
         self.target_bucket=bucket_index
         global_scores=[]
         buckets=[ i for i in range(2**num_random_vectors)]
+        
+        # sorted the buckets based on the hamming distance between the target bucket and the bucket index
         sorted_buckets = sorted(buckets, key=self.custom_sort)
         for i in range (len(sorted_buckets)):
-            if(i>=taken_buckets and len(global_scores)>top_k):
+            # if the top 6 buckets has less than top_k results then continue searching in the rest of the buckets
+            if(i>=taken_buckets and len(global_scores)>top_k): 
                 break
             temp_bucket_index=sorted_buckets[i]
             kmeans=self.kmeans[temp_bucket_index]
@@ -164,6 +148,9 @@ class VecDB:
         global_scores=sorted(global_scores, reverse=True)[:min(top_k,len(global_scores))]
         return [s[1] for s in global_scores]
     
+    # find the bucket index for a given vector
+    # the bucket index is the concatenation of the results of consine similarity between the vector and the random vectors
+    # if the cosine similarity is greater than the threshold then the result is 1 otherwise it is 0
     def find_bucket_index(self, query):
         bucket=0
         for j in range(len(self.random_vectors)):
@@ -173,6 +160,7 @@ class VecDB:
                 bucket=bucket+1
         return bucket
     
+    # calc score based on cosine similarity
     def _cal_score(self, vec1, vec2):
         dot_product = np.dot(vec1, vec2)
         # calc the euclidean norm of vec1 and vec2
@@ -182,14 +170,16 @@ class VecDB:
         cosine_similarity = dot_product / (norm_vec1 * norm_vec2)
         return cosine_similarity
 
+    # it is the same as find bucket index , but it returns a list of bucket indices for a list of vectors
     def find_bucket_indces(self, vec_list):
         bucket_indices = np.zeros(len(vec_list), dtype=int)
-        
         for j in range(len(self.random_vectors)):
             temp_scores = self._cal_scores(vec_list, self.random_vectors[j]) 
             bucket_indices = (bucket_indices << 1) + (temp_scores > 0.75).astype(int)
         return bucket_indices
 
+    # it is the same as cal score , but it returns a list of scores for a list of vectors
+    # it is used to calc the cosine similarity between the query and all the input vectors in the insert function
     def _cal_scores(self, vec_list, vec2):
         dot_products = np.dot(vec_list, vec2)
         # calc the euclidean norm of vec1 and vec2
@@ -199,6 +189,4 @@ class VecDB:
         cosine_similarities = dot_products / (norm_vec1 * norm_vec2)
         return cosine_similarities
 
-    def _build_index(self):
-        pass
-
+   

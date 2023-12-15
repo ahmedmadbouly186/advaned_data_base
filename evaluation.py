@@ -1,7 +1,6 @@
 import numpy as np
 from kmeans import VecDBKmeans
 from vec_db import VecDB
-from worst_case_implementation_trivial import VecDBWorst
 import time
 from dataclasses import dataclass
 from typing import List
@@ -46,11 +45,6 @@ def run_queries(db, np_rows, top_k, num_runs):
         )
         toc = time.time()
         np_run_time = toc - tic
-
-        # print("np_run_time", np_run_time)
-        # print("our_run_time", run_time)
-        # print("----------------------------")
-
         results.append(Result(run_time, top_k, db_ids, actual_ids))
     # return results
 
@@ -94,15 +88,15 @@ if __name__ == "__main__":
     if not os.path.exists("temp"):
         os.makedirs("temp")
     threads = []
-    record_num = 1000000
-    for i in range(1):
+    record_num = 10000
+    for i in range(10):
         rng = np.random.default_rng(50)
-        db = VecDB(file_path="saved_db_1m.csv", new_db=False)
+        db = VecDB(file_path="saved_db_10k.csv",new_db=True)
         records_np = rng.random((record_num, 70), dtype=np.float32)
-        # records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
+        records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
         _len = len(records_np)
         tic = time.time()
-        # db.insert_records(records_dict)
+        db.insert_records(records_dict)
         # db.insert_records([], dic=False, rows_list=records_np)
         # db.insert_level_1(records_np)
         
