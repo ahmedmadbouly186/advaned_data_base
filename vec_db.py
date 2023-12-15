@@ -9,8 +9,8 @@ from kmeans import VecDBKmeans
 import time
 vector_dim = 70
 total_dim = 71
-num_random_vectors = 2
-taken_buckets = num_random_vectors+1
+num_random_vectors = 3
+taken_buckets = 6
 similarity_threshold = 0.75
 num_threads=1
 
@@ -109,35 +109,21 @@ class VecDB:
         # },   "embed" : [70 dim vector]
         # 
         # ]
-        data = np.empty((2**num_random_vectors,), dtype=object)
-        for i in range(2**num_random_vectors):
-            data[i]=[]
-        
+        records_list=[]
         if(dic):
+            records_list=np.empty((len(rows),vector_dim) , dtype=np.float32)
             for row in rows:
                 id, embed = row["id"], row["embed"]
-                bucket_index=self.find_bucket_index(embed)
-                data[bucket_index].append([id]+embed)
+                records_list[id]=embed
         else :
-            index=0
-            for row in rows_list:
-                bucket_index=self.find_bucket_index(row)
-                data[bucket_index].append([index]+list(row))
-                index+=1
-
-        for i in range(len(data)):
-            if(len(data[i])>0):
-                self.kmeans[i].insert_records(data[i])
+            records_list=rows_list
+        bucket_indices = self.find_bucket_indces(records_list)
+        bucket_indices_list = [np.where(bucket_indices == i)[0] for i in range(2**len(self.random_vectors))]
+        for bucket_index in range(2**len(self.random_vectors)):
+            records_for_bucket = records_list[bucket_indices_list[bucket_index]]
+            if(len(records_for_bucket)>0):
+                self.kmeans[bucket_index].insert_records(rows=records_for_bucket,ids=bucket_indices_list[bucket_index])
         self._build_index()
-        
-    def find_bucket_index(self, query):
-        bucket=0
-        for j in range(len(self.random_vectors)):
-            temp_score=self._cal_score(query,self.random_vectors[j])
-            bucket=bucket<<1
-            if(temp_score>similarity_threshold):
-                bucket=bucket+1
-        return bucket
          
     def hamming_distance(self ,a, b):
         return bin(a ^ b).count('1')
@@ -149,7 +135,7 @@ class VecDB:
         bucket_index=self.find_bucket_index(query)
         self.target_bucket=bucket_index
         global_scores=[]
-        cendroids=np.empty((1000,72), dtype=np.float32)
+        cendroids=np.empty((1000,71), dtype=np.float32)
         buckets=[ i for i in range(2**num_random_vectors)]
         sorted_buckets = sorted(buckets, key=self.custom_sort)
         for i in range (len(sorted_buckets)):
@@ -162,6 +148,15 @@ class VecDB:
         global_scores=sorted(global_scores, reverse=True)[:min(top_k,len(global_scores))]
         return [s[1] for s in global_scores]
     
+    def find_bucket_index(self, query):
+        bucket=0
+        for j in range(len(self.random_vectors)):
+            temp_score=self._cal_score(query,self.random_vectors[j])
+            bucket=bucket<<1
+            if(temp_score>similarity_threshold):
+                bucket=bucket+1
+        return bucket
+    
     def _cal_score(self, vec1, vec2):
         dot_product = np.dot(vec1, vec2)
         # calc the euclidean norm of vec1 and vec2
@@ -170,6 +165,23 @@ class VecDB:
         norm_vec2 = np.linalg.norm(vec2)
         cosine_similarity = dot_product / (norm_vec1 * norm_vec2)
         return cosine_similarity
+
+    def find_bucket_indces(self, vec_list):
+        bucket_indices = np.zeros(len(vec_list), dtype=int)
+        
+        for j in range(len(self.random_vectors)):
+            temp_scores = self._cal_scores(vec_list, self.random_vectors[j]) 
+            bucket_indices = (bucket_indices << 1) + (temp_scores > 0.75).astype(int)
+        return bucket_indices
+
+    def _cal_scores(self, vec_list, vec2):
+        dot_products = np.dot(vec_list, vec2)
+        # calc the euclidean norm of vec1 and vec2
+        # norm_vec1 = np.sqrt(np.sum(np.square(vec1)))
+        norm_vec1 = np.linalg.norm(vec_list, axis=1)
+        norm_vec2 = np.linalg.norm(vec2)
+        cosine_similarities = dot_products / (norm_vec1 * norm_vec2)
+        return cosine_similarities
 
     def _build_index(self):
         pass

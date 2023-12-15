@@ -267,8 +267,72 @@ def retrive():
 # print("read time", run_time)
 # print(len(data))
 import numpy as np
-cendroids=np.random.random((10, 72))
-indices = np.argsort(cendroids[:, 0])
-print(indices)
-for i in indices:
-    print(i)
+import time
+
+def generate_random_vectors(num_vectors):
+    vectors = []
+    for i in range(num_vectors):
+        vectors.append(np.random.random(70))
+
+    return vectors
+
+random_vec = generate_random_vectors(2)
+
+def _cal_score(vec_list, vec2):
+    # Calculate dot product and norms
+    dot_products = np.dot(vec_list, vec2)
+    norm_vec1 = np.linalg.norm(vec_list, axis=1)
+    norm_vec2 = np.linalg.norm(vec2)
+    # Calculate cosine similarity for each pair
+    cosine_similarities = dot_products / (norm_vec1 * norm_vec2)
+    return cosine_similarities
+
+def find_bucket_indices(vec_list):
+    global random_vec
+    num_buckets = 2**len(random_vec)
+    bucket_indices = np.zeros(len(vec_list), dtype=int)
+
+    for j in range(len(random_vec)):
+        temp_scores = _cal_score(vec_list, random_vec[j]) 
+        bucket_indices = (bucket_indices << 1) + (temp_scores > 0.75).astype(int)
+
+    return bucket_indices
+
+# Parameters
+record_size = (70,)  # Shape of each record
+total_records = 100000
+filename = 'large_data.npy'
+
+# Generate a list of random records
+rng = np.random.default_rng(50)
+records_list = rng.random((total_records,) + record_size, dtype=np.float32)
+
+tic = time.time()
+
+# Calculate bucket indices for the entire records_list
+bucket_indices = find_bucket_indices(records_list)
+tooc=time.time()
+print('time =', tooc - tic)
+print(len(bucket_indices),bucket_indices)
+# Create a memory-mapped array for writing
+memmap_array = np.memmap(filename, dtype=np.float32, mode='w+', shape=(total_records,) + record_size)
+
+# Create a list to store the indices for each bucket
+bucket_indices_list = [np.where(bucket_indices == i)[0] for i in range(2**len(random_vec))]
+
+# Concatenate the records for each bucket and write them to the memory-mapped array
+start_index = 0
+for bucket_index in range(2**len(random_vec)):
+    records_for_bucket = records_list[bucket_indices_list[bucket_index]]
+    memmap_array[start_index: start_index + len(records_for_bucket)] = records_for_bucket
+    start_index += len(records_for_bucket)
+
+# Flush changes to disk
+memmap_array.flush()
+
+# Optionally, close the memmap array
+del memmap_array
+
+toc = time.time()
+
+print('time =', toc - tic)
