@@ -94,10 +94,10 @@ if __name__ == "__main__":
     if not os.path.exists("temp"):
         os.makedirs("temp")
     threads = []
-    record_num = 20000000
+    record_num = 1000000
     for i in range(1):
         rng = np.random.default_rng(50)
-        db = VecDB(file_path="saved_db_20m.csv", new_db=False)
+        db = VecDB(file_path="saved_db_1m.csv", new_db=False)
         records_np = rng.random((record_num, 70), dtype=np.float32)
         # records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
         _len = len(records_np)

@@ -153,7 +153,6 @@ class VecDB:
         bucket_index=self.find_bucket_index(query)
         self.target_bucket=bucket_index
         global_scores=[]
-        cendroids=np.empty((1000,71), dtype=np.float32)
         buckets=[ i for i in range(2**num_random_vectors)]
         sorted_buckets = sorted(buckets, key=self.custom_sort)
         for i in range (len(sorted_buckets)):
@@ -161,8 +160,7 @@ class VecDB:
                 break
             temp_bucket_index=sorted_buckets[i]
             kmeans=self.kmeans[temp_bucket_index]
-            scores=kmeans.retrive(cendroids,query,top_k)
-            global_scores.extend(scores)
+            global_scores.extend(kmeans.retrive(query,top_k))
         global_scores=sorted(global_scores, reverse=True)[:min(top_k,len(global_scores))]
         return [s[1] for s in global_scores]
     

@@ -91,7 +91,7 @@ class VecDBKmeans:
         del memmap_array   
         self.insert_boundries(path=f"{self.folder_path}/centers_coundries.csv",boundries=centers_boundries)
         gc.collect()
-    def retrive(self,centroids, query: Annotated[List[float], 70], top_k=5):
+    def retrive(self, query: Annotated[List[float], 70], top_k=5):
         # read all the centroids from the file
         # calculates the cosine similarity between the query and all the centroids and takes top 3 centroids to search in
         centroids = self.retrive_centers(path=f"{self.folder_path}/centroids.csv")
@@ -119,7 +119,13 @@ class VecDBKmeans:
             scores=self._cal_scores(rows, query.reshape(-1))
             choosen_ids=np.argsort(scores)[::-1][:min(len(scores),top_k)]
             kmeans_scores.extend([(scores[id],ids[id]) for id in choosen_ids])
+            del scores
+            del ids
+            del rows
         del memmap_array_read
+        del centroids
+        del centers_boundries
+        del c_scores
         # sort the scores descendingly to get the top k similar vectors
         return sorted(kmeans_scores, reverse=True)[:min(len(kmeans_scores),top_k)]
 
