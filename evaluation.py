@@ -97,33 +97,33 @@ if __name__ == "__main__":
     record_num = 20000000
     for i in range(1):
         rng = np.random.default_rng(50)
-        db = VecDB(file_path="saved_db_20m.csv", new_db=True)
+        db = VecDB(file_path="saved_db_20m.csv", new_db=False)
         records_np = rng.random((record_num, 70), dtype=np.float32)
         # records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
         _len = len(records_np)
         tic = time.time()
         # db.insert_records(records_dict)
         # db.insert_records([], dic=False, rows_list=records_np)
-        db.insert_level_1(records_np)
+        # db.insert_level_1(records_np)
         
-        num_threads = 4
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-            # Submit the tasks to the executor
-            futures = [executor.submit(insert_level_2, db,i) for i in range(8)]
+        # num_threads = 4
+        # with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+        #     # Submit the tasks to the executor
+        #     futures = [executor.submit(insert_level_2, db,i) for i in range(8)]
 
-            # Wait for all tasks to complete
-            concurrent.futures.wait(futures)
+        #     # Wait for all tasks to complete
+        #     concurrent.futures.wait(futures)
 
         toc = time.time()
         run_time = toc - tic
         print("insirtion time", run_time)
-        run_queries(db, records_np, 5, 5)
+        # run_queries(db, records_np, 5, 5)
         res, mem = memory_usage_run_queries((db, records_np, 5, 3))
         print(eval(res), f"RAM\t{mem:.2f} MB")
         # print(f"record_num={record_num} ",eval(res),f"RAM\t{mem:.2f} MB")
-        res, mem = memory_usage_run_queries((db, records_np, 5, 3))
-        print(eval(res), f"RAM\t{mem:.2f} MB")
-        # print(f"record_num={record_num} ",eval(res),f"RAM\t{mem:.2f} MB")
-        res, mem = memory_usage_run_queries((db, records_np, 5, 3))
-        print(eval(res), f"RAM\t{mem:.2f} MB")
+        # res, mem = memory_usage_run_queries((db, records_np, 5, 1))
+        # print(eval(res), f"RAM\t{mem:.2f} MB")
+        # # print(f"record_num={record_num} ",eval(res),f"RAM\t{mem:.2f} MB")
+        # res, mem = memory_usage_run_queries((db, records_np, 5, 1))
+        # print(eval(res), f"RAM\t{mem:.2f} MB")
         # print(f"record_num={record_num} ",eval(res),f"RAM\t{mem:.2f} MB")
