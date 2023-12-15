@@ -98,10 +98,28 @@ class VecDB:
     def generate_random_vectors(self,num_vectors):
         vectors = []
         for i in range(num_vectors):
-            vectors.append(np.random.random( vector_dim))
+            vectors.append(np.random.random( vector_dim).astype(np.float32))
 
         return vectors
-
+    def insert_level_1(self,rows_list):
+        bucket_indices = self.find_bucket_indces(rows_list)
+        bucket_indices_list = [np.where(bucket_indices == i)[0] for i in range(2**len(self.random_vectors))]
+        for bucket_index in range(2**len(self.random_vectors)):
+            records_for_bucket = rows_list[bucket_indices_list[bucket_index]]
+            memmap_array = np.memmap(f"./temp/data{bucket_index}.csv", dtype=np.float32, mode='w+', shape=(len(records_for_bucket),total_dim) )
+            memmap_array[:,0] = bucket_indices_list[bucket_index]
+            memmap_array[:,1:] = records_for_bucket[:]
+            memmap_array.flush()
+            del memmap_array
+    def insert_level_2(self,index):
+        path=f"./temp/data{index}.csv"
+        total_bytes=os.path.getsize(path)
+        records=(total_bytes//4)//(total_dim) 
+        memmap_array_read = np.memmap(path, dtype=np.float32, mode='r', shape=(records,total_dim) )
+        records_for_bucket=memmap_array_read[:,1:]
+        ids=memmap_array_read[:,0]
+        self.kmeans[index].insert_records(rows=records_for_bucket,ids=ids) 
+         
     def insert_records(self, rows: List[Dict[int, Annotated[List[float], 70]]],dic=True,rows_list=[]):
         # rows has the following shape [
         # {
