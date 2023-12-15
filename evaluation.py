@@ -8,7 +8,7 @@ from typing import List
 import gc
 from memory_profiler import memory_usage
 import concurrent.futures
-
+import os
 AVG_OVERX_ROWS = 10
 
 
@@ -90,6 +90,9 @@ def insert_level_2(db,index):
     db.insert_level_2(index)
 
 if __name__ == "__main__":
+    # create temp folder if not exists
+    if not os.path.exists("temp"):
+        os.makedirs("temp")
     threads = []
     record_num = 20000000
     for i in range(1):
