@@ -6,8 +6,8 @@ import os
 import gc
 import time
 
-taken_cluster = 10 # number of clusters to search for the query in retrieval
-clusters = 30 # number of kmeans clusters
+taken_cluster = 150 # number of clusters to search for the query in retrieval
+clusters = 1000 # number of kmeans clusters
 vector_dim = 70 # vector dimensionality
 total_dim = 71  # vector dimensionality + id
 
