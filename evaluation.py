@@ -94,19 +94,23 @@ if __name__ == "__main__":
     threads = []
     record_num = 20000000
     for i in range(1):
-        rng = np.random.default_rng(50)
+        # rng = np.random.default_rng(50)
         db = VecDB(file_path="saved_db_20m.csv",new_db=True)
-        records_np = rng.random((record_num, 70), dtype=np.float32)
+        # records_np = rng.random((record_num, 70), dtype=np.float32)
         # records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
         # _len = len(records_np)
         # tic = time.time()
         # db.insert_records(records_dict)
         # db.insert_records([], dic=False, rows_list=records_np)
-        db.insert_level_1(records_np)
+        # db.insert_level_1(records_np)
         db.insert_level_2(0)
         db.insert_level_2(1)
         db.insert_level_2(2)
         db.insert_level_2(3)
+        db.insert_level_2(4)
+        db.insert_level_2(5)
+        db.insert_level_2(6)
+        db.insert_level_2(7)
         # num_threads = 4
         # with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
         #     # Submit the tasks to the executor
