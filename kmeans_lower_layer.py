@@ -5,9 +5,18 @@ import struct
 import os
 import gc
 import time
-
-taken_cluster = 150 # number of clusters to search for the query in retrieval
-clusters = 1000 # number of kmeans clusters
+from typing import Dict, List, Annotated
+import numpy as np
+# from npy_append_array import NpyAppendArray
+from math import ceil, floor 
+from sklearn.cluster import MiniBatchKMeans
+import os
+from joblib import dump, load
+from shutil import rmtree
+import tempfile
+import uuid
+taken_cluster =  48 # number of clusters to search for the query in retrieval
+clusters = 50 # number of kmeans clusters
 vector_dim = 70 # vector dimensionality
 total_dim = 71  # vector dimensionality + id
 
@@ -16,16 +25,30 @@ class VecDBKmeans:
     def __init__(self, index=0, folder_path="saved_db", new_db=True) -> None:
         self.index = index
         self.folder_path = './'+folder_path+'/'+str(self.index)+"kmeans_files"
+        self.reindex_ratio = 2 # reindex the data when the number of records is doubled
+        self.centroids_path='centroids.csv'
+        self.data_path='data.csv'
+        self.monolothic_data_path='monolothic_data.csv'
+        self.metadata_path='metadata.csv'
         folder_path = os.path.join(os.getcwd(), self.folder_path)
-
+        
         # Check if the folder already exists
         if not os.path.exists(folder_path):
             # Create the folder
             os.makedirs(folder_path)
 
         if new_db:
-            open(f"{self.folder_path}/centroids.csv", 'w').close()
-            open(f"{self.folder_path}/data.csv", 'w').close()
+            open(f"{self.folder_path}/{self.centroids_path}", 'w').close()
+            open(f"{self.folder_path}/{self.data_path}", 'w').close()
+            open(f"{self.folder_path}/{self.monolothic_data_path}", 'w').close()
+            open(f"{self.folder_path}/{self.metadata_path}", 'w').close()
+            with open(f"{self.folder_path}/{self.metadata_path}", "w") as file:
+                file.write("0\n0\n")
+            # loop and create the files for the clusters , each cluster will be in separate file
+            for i in range(clusters):
+                open(f"{self.folder_path}/{str(i)}.csv", 'w').close()
+
+            
 
     def insert_records(self, rows: List[Annotated[List[float], 70]], ids: List[int]):
         '''
@@ -35,9 +58,100 @@ class VecDBKmeans:
         if (len(ids) == 0):
             return
         
-        # this is the main function that creates the clusters and indexes the records
-        self.create_clusters(ids, rows, k=min(len(ids), clusters))
+        # insert into the monolithic data file
+        monolothic_data_path = f"{self.folder_path}/{self.monolothic_data_path}"
+        meta_path= f"{self.folder_path}/{self.metadata_path}"        
+                # Open the file in read mode
+        records_num=0
+        indexing_num=0
+        with open(meta_path, 'r') as file:
+            # Read the first line
+            line1 = file.readline().strip()
+            line2 = file.readline().strip()
 
+            # Convert to integer
+            records_num = int(line1)
+            indexing_num= int (line2)
+        start_index = records_num
+        memmap_array = np.memmap(monolothic_data_path, dtype=np.float32, mode='w+', shape=(len(rows)+records_num, total_dim))
+        memmap_array[start_index:start_index + len(rows), 1:] = rows
+        memmap_array[start_index:start_index + len(rows), :1] = np.array(ids).reshape((-1, 1))
+        # free and delete the memory used
+        memmap_array.flush()
+        del memmap_array
+        records_num+=len(rows)
+        # store the new records number in the metadata file at the first line only
+        with open(meta_path, "r+") as file:
+            present_vec_num = int(file.readline()) + len(rows)
+            file.seek(0)
+            file.write(f"{present_vec_num}\n")
+            file.write(f"{indexing_num}\n")
+            
+       
+        if(records_num>=self.reindex_ratio*indexing_num):
+            print("reindexing")
+            self.reindex()
+        else :
+            print("no need to reindexing")
+            self.insert_index(ids,rows)
+        # this is the main function that creates the clusters and indexes the records
+    
+    def insert_index(self, ids,rows):
+        # insert the new records to the existing clusters
+        # each record will be inserted in the correct cluster
+        # the correct cluster is where the centroid is nearst to this record
+        # read the centroids from the file
+        centroids = self.retrive_centers(path=f"{self.folder_path}/centroids.csv")
+        
+        # find te nearst center for each record 'rows'
+                # Find the nearest center for each record
+        nearest_centers = []
+        for row in rows:
+            scores = self._cal_scores(centroids, row)
+            nearest_center_index = np.argmax(scores)
+            nearest_centers.append(nearest_center_index)
+        
+        # for each centroid , insert the records in the correct file
+        for i in range(clusters):
+            # calc the number of records in the cluster
+            # read ow many records are in the cluster by divition the size of the file over (total_dim*4)
+            current = os.path.getsize(f"{self.folder_path}/{str(i)}.csv")//(total_dim*4)
+            indices = np.where(np.array(nearest_centers) == i)[0]
+            if len(indices) == 0:
+                continue
+            memmap_array = np.memmap(f"{self.folder_path}/{str(i)}.csv", dtype=np.float32, mode='r+', shape=(len(indices) +current , total_dim))
+            memmap_array[current:current + len(indices), 1:] = rows[indices]
+            memmap_array[current:current + len(indices), :1] = np.array(ids)[indices].reshape((-1, 1))
+            memmap_array.flush()
+            del memmap_array
+        
+        pass
+    
+    def reindex(self):
+        open(f"{self.folder_path}/{self.centroids_path}", 'w').close()
+        open(f"{self.folder_path}/{self.data_path}", 'w').close()
+        # loop and create the files for the clusters , each cluster will be in separate file
+        for i in range(clusters):
+            open(f"{self.folder_path}/{str(i)}.csv", 'w').close()
+
+        # load the whole data from the monolithic file
+        monolothic_data_path = f"{self.folder_path}/{self.monolothic_data_path}"
+        meta_path= f"{self.folder_path}/{self.metadata_path}"  
+        with open(meta_path, "r+") as file:
+            present_vec_num = int(file.readline())
+        memmap_array_read=np.memmap(monolothic_data_path, dtype=np.float32, mode='r', shape=(present_vec_num, total_dim))
+        ids=memmap_array_read[:,0]
+        rows=memmap_array_read[:,1:]
+        self.create_clusters(ids, rows, k=min(len(ids), clusters))
+        with open(meta_path, "r+") as file:
+            present_vec_num = int(file.readline())
+            file.seek(0)
+            file.write(f"{present_vec_num}\n")
+            file.write(f"{present_vec_num}\n")
+        del memmap_array_read     
+        
+
+        
     def retrive_centers(self, path):
         '''
         given the path of the file of the saved centroids,
@@ -65,6 +179,7 @@ class VecDBKmeans:
         save the centroids of each cluster to 
         '''
         # create a memmap array to write the returned centers from the kmeans to the file
+        open(path, 'w').close()
         memmap_array = np.memmap(path, dtype=np.float32, mode='w+', shape=(len(centers), vector_dim))
         memmap_array[:, :] = centers
 
@@ -118,7 +233,7 @@ class VecDBKmeans:
 
         # for each cluster save the vectors with the same label to the part in the file
         # also save the boundaries (start and end) index of each cluster in the file
-        memmap_array = np.memmap(f"{self.folder_path}/data.csv",dtype=np.float32, mode='w+', shape=(len(embeddings), total_dim))
+        # memmap_array = np.memmap(f"{self.folder_path}/data.csv",dtype=np.float32, mode='w+', shape=(len(embeddings), total_dim))
         start_index = 0
         centers_boundries = np.zeros((k, 2), dtype=np.int32)
 
@@ -126,8 +241,14 @@ class VecDBKmeans:
         for i in range(k):
             centers_boundries[i][0] = start_index
             labels_indices = np.where(kmeans.labels_ == i)[0]
-            memmap_array[start_index:start_index +len(labels_indices), 0] = ids[labels_indices]
-            memmap_array[start_index:start_index +len(labels_indices), 1:] = embeddings[labels_indices]
+            # print(np.array(labels_indices))
+            # store the ids and the embeddings in the file for this cluster
+            open(f"{self.folder_path}/{str(i)}.csv", 'w').close()
+            memmap_array = np.memmap(f"{self.folder_path}/{str(i)}.csv", dtype=np.float32, mode='w+', shape=(len(labels_indices) , total_dim))
+
+            memmap_array[:, 0] = ids[np.array(labels_indices)]
+
+            memmap_array[: , 1:] = embeddings[labels_indices]
             start_index += len(labels_indices)
             centers_boundries[i][1] = start_index
 
@@ -158,22 +279,25 @@ class VecDBKmeans:
         kmeans_scores = []
 
         # create memmap array to read the data from the file
-        data_path = f"{self.folder_path}/data.csv"
-        total_bytes = os.path.getsize(data_path)
-        records = (total_bytes//4)//(total_dim)
-        memmap_array_read = np.memmap(data_path, dtype=np.float32, mode='r', shape=(records, total_dim))
+        # data_path = f"{self.folder_path}/data.csv"
+        # total_bytes = os.path.getsize(data_path)
+        # records = (total_bytes//4)//(total_dim)
 
         # loop on all the target clusters and apply linear search using cosine similarity 
         for i in range(len(target_clusters)):
             if (i >= taken_cluster and len(kmeans_scores) >= top_k):
                 break
+            cluster = target_clusters[i]
+            records= os.path.getsize(f"{self.folder_path}/{str(cluster)}.csv")//(total_dim*4)
+            memmap_array = np.memmap(f"{self.folder_path}/{str(cluster)}.csv", dtype=np.float32, mode='r+', shape=(records , total_dim))
+
             start, end = centers_boundries[target_clusters[i]]
 
             # create a list and add the score of each vector in the target clusters to it
-            rows = np.empty((end-start, 70), dtype=np.float32)
-            rows[:, :] = memmap_array_read[start:end, 1:]
-            ids = np.empty((end-start), dtype=np.int32)
-            ids[:] = memmap_array_read[start:end, 0]
+            rows = np.empty((records, 70), dtype=np.float32)
+            rows[:, :] = memmap_array[:, 1:]
+            ids = np.empty((records), dtype=np.int32)
+            ids[:] = memmap_array[:, 0]
             scores = self._cal_scores(rows, query.reshape(-1))
 
             # sort the scores to retrieve the top k in the list
@@ -188,13 +312,13 @@ class VecDBKmeans:
             del rows
 
         # free and delete the memory allocated each time
-        del memmap_array_read
+        del memmap_array
         del centroids
         del centers_boundries
         del c_scores
 
         # sort the scores descendingly to get the top k similar vectors
-        return sorted(kmeans_scores, reverse=True)[:min(len(kmeans_scores), top_k)]
+        return [x[1] for x in sorted(kmeans_scores, reverse=True)[:min(len(kmeans_scores), top_k)]]
 
     def _cal_score(vec1, vec2):
         '''
@@ -226,5 +350,6 @@ class VecDBKmeans:
         norm_vec2 = np.linalg.norm(vec2)
 
         # calculate the cosine similarity
+        
         cosine_similarities = dot_products / (norm_vec1 * norm_vec2)
         return cosine_similarities

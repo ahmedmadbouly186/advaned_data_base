@@ -118,12 +118,14 @@ class VecDB:
         else :
             records_list=rows_list
         # find the bucket index for each record
+        print(len(rows_list))
         bucket_indices = self.find_bucket_indces(records_list)
         bucket_indices_list = [np.where(bucket_indices == i)[0] for i in range(2**len(self.random_vectors))]
         # select all records related to the same bucket index and insert it in the respondeing kmenas
         for bucket_index in range(2**len(self.random_vectors)):
             records_for_bucket = records_list[bucket_indices_list[bucket_index]]
             if(len(records_for_bucket)>0):
+                print(bucket_indices_list[bucket_index])
                 self.kmeans[bucket_index].insert_records(rows=records_for_bucket,ids=bucket_indices_list[bucket_index])
          
     def hamming_distance(self ,a, b):

@@ -8,6 +8,9 @@ import gc
 from memory_profiler import memory_usage
 import concurrent.futures
 import os
+import random
+import numpy as np
+
 AVG_OVERX_ROWS = 10
 
 
@@ -25,7 +28,11 @@ results = []
 def run_queries(db, np_rows, top_k, num_runs):
     global results
     results = []
-    rng = np.random.default_rng(100)
+    # Generate a random seed
+    random_seed = random.randint(0, 1000)
+
+    # Initialize the random number generator with the random seed
+    rng = np.random.default_rng(random_seed)
 
     for _ in range(num_runs):
         
@@ -93,39 +100,58 @@ if __name__ == "__main__":
         os.makedirs("temp")
     threads = []
     record_num = 100000
-    for i in range(1):
-        rng = np.random.default_rng(50)
-        db = VecDB(file_path="saved_db_10k.csv",new_db=True)
-        records_np = rng.random((record_num, 70), dtype=np.float32)
-        records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
-        # _len = len(records_np)
-        tic = time.time()
-        db.insert_records(records_dict)
-        # db.insert_records([], dic=False, rows_list=records_np)
-        # db.insert_level_1(records_np)
-        # db.insert_level_2(0)
-        # db.insert_level_2(1)
-        # db.insert_level_2(2)
-        # db.insert_level_2(3)
-        # db.insert_level_2(4)
-        # db.insert_level_2(5)
-        # db.insert_level_2(6)
-        # db.insert_level_2(7)
-        # num_threads = 4
-        # with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-        #     # Submit the tasks to the executor
-        #     futures = [executor.submit(insert_level_2, db,i) for i in range(8)]
+    folder_name='saved_db_10k'
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
+    rng = np.random.default_rng(50)
+   
+    db =  VecDBKmeans(index=0,folder_path=folder_name,new_db=True,)
+    # db = VecDB(file_path=f"{folder_name}.csv",new_db=True)
+    records_np = rng.random((record_num, 70), dtype=np.float32)
+    ids_list=np.array(list(range(record_num)))
+    # records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
+    tic = time.time()
+    print(len(records_np))
+    # db.insert_records(rows=records_dict,rows_list= records_np,dic=False)
+    accum_records=0
+    records=30000
+    print(f"cuurent there is {accum_records} | inserting records  {records}")
+    db.insert_records(rows=records_np[accum_records:accum_records+records],ids=ids_list[accum_records:accum_records+records])
+    accum_records+=records
+    
+    records=20000
+    print(f"cuurent there is {accum_records} | inserting records  {records}")
+    db.insert_records(rows=records_np[accum_records:accum_records+records],ids=ids_list[accum_records:accum_records+records])
+    accum_records+=records
 
-        #     # Wait for all tasks to complete
-        #     concurrent.futures.wait(futures)
+    records=50000
+    print(f"cuurent there is {accum_records} | inserting records  {records}")
+    db.insert_records(rows=records_np[accum_records:accum_records+records],ids=ids_list[accum_records:accum_records+records])
+    accum_records+=records
 
-        toc = time.time()
-        run_time = toc - tic
-        print("insirtion time", run_time)
-        run_queries(db, records_np, 5, 5)
-        res, mem = memory_usage_run_queries((db, records_np, 5, 3))
-        print(f"Record Number: {record_num} | Error from Exact Match: {eval(res)[0]} | Search Time: {eval(res)[1]} seconds | Memory Usage: {mem:.2f} MB")
-        res, mem = memory_usage_run_queries((db, records_np, 5, 1))
-        print(f"Record Number: {record_num} | Error from Exact Match: {eval(res)[0]} | Search Time: {eval(res)[1]} seconds | Memory Usage: {mem:.2f} MB")
-        res, mem = memory_usage_run_queries((db, records_np, 5, 1))
-        print(f"Record Number: {record_num} | Error from Exact Match: {eval(res)[0]} | Search Time: {eval(res)[1]} seconds | Memory Usage: {mem:.2f} MB")
+    # records=60000
+    # print(f"cuurent there is {accum_records} | inserting records  {records}")
+    # db.insert_records(rows=records_np[accum_records:accum_records+records],ids=ids_list[accum_records:accum_records+records])
+    # accum_records+=records
+
+
+    toc = time.time()
+    run_time = toc - tic
+    print(f"number of records: {np.shape(records_np)[0]} | dimension: {np.shape(records_np)[1]}")
+    print("insirtion time", run_time,"seconds")
+
+    res, mem = memory_usage_run_queries((db, records_np, 5, 1))
+    print(f"Record Number: {record_num} | Error from Exact Match: {eval(res)[0]} | Search Time: {eval(res)[1]} seconds | Memory Usage: {mem:.2f} MB")
+    res, mem = memory_usage_run_queries((db, records_np, 5, 1))
+    print(f"Record Number: {record_num} | Error from Exact Match: {eval(res)[0]} | Search Time: {eval(res)[1]} seconds | Memory Usage: {mem:.2f} MB")
+    res, mem = memory_usage_run_queries((db, records_np, 5, 1))
+    print(f"Record Number: {record_num} | Error from Exact Match: {eval(res)[0]} | Search Time: {eval(res)[1]} seconds | Memory Usage: {mem:.2f} MB")
+    res, mem = memory_usage_run_queries((db, records_np, 5, 1))
+    print(f"Record Number: {record_num} | Error from Exact Match: {eval(res)[0]} | Search Time: {eval(res)[1]} seconds | Memory Usage: {mem:.2f} MB")
+    res, mem = memory_usage_run_queries((db, records_np, 5, 1))
+    print(f"Record Number: {record_num} | Error from Exact Match: {eval(res)[0]} | Search Time: {eval(res)[1]} seconds | Memory Usage: {mem:.2f} MB")
+    res, mem = memory_usage_run_queries((db, records_np, 5, 1))
+    print(f"Record Number: {record_num} | Error from Exact Match: {eval(res)[0]} | Search Time: {eval(res)[1]} seconds | Memory Usage: {mem:.2f} MB")
+    res, mem = memory_usage_run_queries((db, records_np, 5, 1))
+    print(f"Record Number: {record_num} | Error from Exact Match: {eval(res)[0]} | Search Time: {eval(res)[1]} seconds | Memory Usage: {mem:.2f} MB")
+
