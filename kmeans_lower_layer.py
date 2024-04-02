@@ -89,10 +89,10 @@ class VecDBKmeans:
             
        
         if(records_num>=self.reindex_ratio*indexing_num):
-            print("reindexing")
+            print("after inserting ,the DB need reindexing")
             self.reindex()
         else :
-            print("no need to reindexing")
+            print("there is no need for reindexing")
             self.insert_index(ids,rows)
         # this is the main function that creates the clusters and indexes the records
     
