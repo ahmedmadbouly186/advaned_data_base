@@ -5,7 +5,7 @@ import csv
 import os
 import threading
 import gc
-from kmeans import VecDBKmeans
+from kmeans_lower_layer import VecDBKmeans
 import time
 vector_dim = 70
 total_dim = 71
@@ -32,23 +32,23 @@ class VecDB:
             os.makedirs(self.folder_path)
         if new_db:
             # just open new file to delete the old one
-            # with open(self.file_path, "w") as fout:
-            #     # if you need to add any head to the file
-            #     pass
-            # with open(self.meta_data_path, "w") as file:
-            #     random_vectors = self.generate_random_vectors(num_random_vectors)
-            #     for vector in random_vectors:
-            #         row_str = ",".join([str(e) for e in vector])
-            #         file.write(f"{row_str}\n")
+            with open(self.file_path, "w") as fout:
+                # if you need to add any head to the file
+                pass
+            with open(self.meta_data_path, "w") as file:
+                random_vectors = self.generate_random_vectors(num_random_vectors)
+                for vector in random_vectors:
+                    row_str = ",".join([str(e) for e in vector])
+                    file.write(f"{row_str}\n")
 
-            #         # file.write(str(vector))
-            #         # file.write("\n")
-            #     pass
-            with open(self.meta_data_path, "r") as file:
-                for line in file:
-                    row_splits = line.split(",")
-                    # float_values = [float(value) for value in line[1:-2].split()]
-                    random_vectors.append([float(e) for e in row_splits[:]])
+                    # file.write(str(vector))
+                    # file.write("\n")
+                pass
+            # with open(self.meta_data_path, "r") as file:
+            #     for line in file:
+            #         row_splits = line.split(",")
+            #         # float_values = [float(value) for value in line[1:-2].split()]
+            #         random_vectors.append([float(e) for e in row_splits[:]])
             
         else:
             with open(self.meta_data_path, "r") as file:

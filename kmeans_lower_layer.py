@@ -16,7 +16,6 @@ class VecDBKmeans:
     def __init__(self, index=0, folder_path="saved_db", new_db=True) -> None:
         self.index = index
         self.folder_path = './'+folder_path+'/'+str(self.index)+"kmeans_files"
-
         folder_path = os.path.join(os.getcwd(), self.folder_path)
 
         # Check if the folder already exists

@@ -1,6 +1,6 @@
 import numpy as np
-from kmeans import VecDBKmeans
-from vec_db import VecDB
+from kmeans_lower_layer import VecDBKmeans
+from LSH_upper_layer import VecDB
 import time
 from dataclasses import dataclass
 from typing import List
@@ -92,25 +92,25 @@ if __name__ == "__main__":
     if not os.path.exists("temp"):
         os.makedirs("temp")
     threads = []
-    record_num = 20000000
+    record_num = 100000
     for i in range(1):
-        # rng = np.random.default_rng(50)
-        db = VecDB(file_path="saved_db_20m.csv",new_db=True)
-        # records_np = rng.random((record_num, 70), dtype=np.float32)
-        # records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
+        rng = np.random.default_rng(50)
+        db = VecDB(file_path="saved_db_10k.csv",new_db=True)
+        records_np = rng.random((record_num, 70), dtype=np.float32)
+        records_dict = [{"id": i, "embed": list(row)} for i, row in enumerate(records_np)]
         # _len = len(records_np)
-        # tic = time.time()
-        # db.insert_records(records_dict)
+        tic = time.time()
+        db.insert_records(records_dict)
         # db.insert_records([], dic=False, rows_list=records_np)
         # db.insert_level_1(records_np)
-        db.insert_level_2(0)
-        db.insert_level_2(1)
-        db.insert_level_2(2)
-        db.insert_level_2(3)
-        db.insert_level_2(4)
-        db.insert_level_2(5)
-        db.insert_level_2(6)
-        db.insert_level_2(7)
+        # db.insert_level_2(0)
+        # db.insert_level_2(1)
+        # db.insert_level_2(2)
+        # db.insert_level_2(3)
+        # db.insert_level_2(4)
+        # db.insert_level_2(5)
+        # db.insert_level_2(6)
+        # db.insert_level_2(7)
         # num_threads = 4
         # with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
         #     # Submit the tasks to the executor
@@ -119,16 +119,13 @@ if __name__ == "__main__":
         #     # Wait for all tasks to complete
         #     concurrent.futures.wait(futures)
 
-        # toc = time.time()
-        # run_time = toc - tic
-        # print("insirtion time", run_time)
-        # run_queries(db, records_np, 5, 5)
-        # res, mem = memory_usage_run_queries((db, records_np, 5, 3))
-        # print(eval(res), f"RAM\t{mem:.2f} MB")
-        # print(f"record_num={record_num} ",eval(res),f"RAM\t{mem:.2f} MB")
-        # res, mem = memory_usage_run_queries((db, records_np, 5, 1))
-        # print(eval(res), f"RAM\t{mem:.2f} MB")
-        # # print(f"record_num={record_num} ",eval(res),f"RAM\t{mem:.2f} MB")
-        # res, mem = memory_usage_run_queries((db, records_np, 5, 1))
-        # print(eval(res), f"RAM\t{mem:.2f} MB")
-        # print(f"record_num={record_num} ",eval(res),f"RAM\t{mem:.2f} MB")
+        toc = time.time()
+        run_time = toc - tic
+        print("insirtion time", run_time)
+        run_queries(db, records_np, 5, 5)
+        res, mem = memory_usage_run_queries((db, records_np, 5, 3))
+        print(f"Record Number: {record_num} | Error from Exact Match: {eval(res)[0]} | Search Time: {eval(res)[1]} seconds | Memory Usage: {mem:.2f} MB")
+        res, mem = memory_usage_run_queries((db, records_np, 5, 1))
+        print(f"Record Number: {record_num} | Error from Exact Match: {eval(res)[0]} | Search Time: {eval(res)[1]} seconds | Memory Usage: {mem:.2f} MB")
+        res, mem = memory_usage_run_queries((db, records_np, 5, 1))
+        print(f"Record Number: {record_num} | Error from Exact Match: {eval(res)[0]} | Search Time: {eval(res)[1]} seconds | Memory Usage: {mem:.2f} MB")
