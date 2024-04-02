@@ -15,8 +15,8 @@ from joblib import dump, load
 from shutil import rmtree
 import tempfile
 import uuid
-taken_cluster =  48 # number of clusters to search for the query in retrieval
-clusters = 50 # number of kmeans clusters
+taken_cluster =  200 # number of clusters to search for the query in retrieval
+clusters = 1000 # number of kmeans clusters
 vector_dim = 70 # vector dimensionality
 total_dim = 71  # vector dimensionality + id
 
